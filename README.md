@@ -22,5 +22,16 @@ and the software reliable.
 - Network I/O (bytes, packets, errors per interface)
 - Process count and basic system limits
 
+## Contributing
+Please check dependency freshness and binary size when submitting changes.
+
+To install helper tools:
+- `cargo install cargo-outdated`
+- `cargo install cargo-bloat`
+
+Recommended checks:
+- `cargo outdated`
+- `cargo bloat --release`
+
 ## Status
 This project is a work in progress.
