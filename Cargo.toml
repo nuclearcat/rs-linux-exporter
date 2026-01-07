@@ -1,0 +1,8 @@
+[package]
+name = "rs-linux-exporter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+prometheus = "0.14"
+rocket = "0.5.0"
