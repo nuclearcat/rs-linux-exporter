@@ -1,17 +1,24 @@
 #[macro_use]
 extern crate rocket;
 
-use prometheus::{Encoder, Gauge, IntCounter, TextEncoder};
+mod datasource_procfs;
+mod datasource_cpufreq;
+mod datasource_softnet;
+mod datasource_conntrack;
+mod datasource_ethtool;
+mod datasource_filesystems;
+mod config;
+mod runtime;
+
+use prometheus::{Encoder, IntCounter, TextEncoder};
 use rocket::http::ContentType;
 use rocket::Config;
-use std::fs;
 use std::sync::OnceLock;
+use crate::config::AppConfig;
 
 static METRICS_REQUESTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
-static UPTIME_SECONDS: OnceLock<Gauge> = OnceLock::new();
-static LOAD1: OnceLock<Gauge> = OnceLock::new();
-static LOAD5: OnceLock<Gauge> = OnceLock::new();
-static LOAD15: OnceLock<Gauge> = OnceLock::new();
+static APP_CONFIG: OnceLock<AppConfig> = OnceLock::new();
+static IS_ROOT: OnceLock<bool> = OnceLock::new();
 
 fn metrics_requests_total() -> &'static IntCounter {
     METRICS_REQUESTS_TOTAL.get_or_init(|| {
@@ -23,68 +30,21 @@ fn metrics_requests_total() -> &'static IntCounter {
     })
 }
 
-fn uptime_seconds() -> &'static Gauge {
-    UPTIME_SECONDS.get_or_init(|| {
-        prometheus::register_gauge!("uptime_seconds", "System uptime in seconds")
-            .expect("register uptime_seconds")
-    })
+fn app_config() -> &'static AppConfig {
+    APP_CONFIG.get_or_init(AppConfig::load)
 }
 
-fn load1() -> &'static Gauge {
-    LOAD1.get_or_init(|| {
-        prometheus::register_gauge!("load1", "1-minute load average")
-            .expect("register load1")
-    })
-}
-
-fn load5() -> &'static Gauge {
-    LOAD5.get_or_init(|| {
-        prometheus::register_gauge!("load5", "5-minute load average")
-            .expect("register load5")
-    })
-}
-
-fn load15() -> &'static Gauge {
-    LOAD15.get_or_init(|| {
-        prometheus::register_gauge!("load15", "15-minute load average")
-            .expect("register load15")
-    })
-}
-
-fn update_uptime() {
-    let Ok(contents) = fs::read_to_string("/proc/uptime") else {
-        return;
-    };
-    let Some(first) = contents.split_whitespace().next() else {
-        return;
-    };
-    if let Ok(value) = first.parse::<f64>() {
-        uptime_seconds().set(value);
-    }
-}
-
-fn update_loadavg() {
-    let Ok(contents) = fs::read_to_string("/proc/loadavg") else {
-        return;
-    };
-    let mut parts = contents.split_whitespace();
-    let (Some(a), Some(b), Some(c)) = (parts.next(), parts.next(), parts.next()) else {
-        return;
-    };
-    if let Ok(value) = a.parse::<f64>() {
-        load1().set(value);
-    }
-    if let Ok(value) = b.parse::<f64>() {
-        load5().set(value);
-    }
-    if let Ok(value) = c.parse::<f64>() {
-        load15().set(value);
-    }
+fn is_root() -> bool {
+    *IS_ROOT.get_or_init(|| unsafe { libc::geteuid() == 0 })
 }
 
 fn update_metrics() {
-    update_uptime();
-    update_loadavg();
+    datasource_procfs::update_metrics(app_config());
+    datasource_cpufreq::update_metrics();
+    datasource_softnet::update_metrics();
+    datasource_conntrack::update_metrics();
+    datasource_filesystems::update_metrics(app_config());
+    // TODO: Implementation in progress; ethtool netlink stats disabled for now.
 }
 
 #[get("/metrics")]
@@ -109,6 +69,39 @@ fn index() -> &'static str {
 
 #[launch]
 fn rocket() -> _ {
+    runtime::init();
+    if runtime::debug_enabled() {
+        eprintln!("Debug logging enabled.");
+    }
+    if !is_root() {
+        eprintln!("\x1b[31mNon-root: ethtool stats collection disabled.\x1b[0m");
+    }
     let figment = Config::figment().merge(("port", 9100));
     rocket::custom(figment).mount("/", routes![index, metrics])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rocket;
+    use rocket::http::Status;
+    use rocket::local::blocking::Client;
+
+    #[test]
+    fn index_returns_hint() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/").dispatch();
+
+        assert_eq!(response.status(), Status::Ok);
+        assert_eq!(response.into_string().unwrap_or_default(), "rs-linux-exporter: /metrics");
+    }
+
+    #[test]
+    fn metrics_endpoint_exposes_prometheus_text() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/metrics").dispatch();
+
+        assert_eq!(response.status(), Status::Ok);
+        let body = response.into_string().unwrap_or_default();
+        assert!(body.contains("metrics_requests_total"));
+    }
 }
