@@ -105,6 +105,12 @@ allowed_metrics_cidrs = ["127.0.0.0/8"]
 
 # Bind address for the HTTP server
 bind = "127.0.0.1:9100"
+
+# Log denied /metrics requests
+log_denied_requests = true
+
+# Log 404 requests
+log_404_requests = false
 ```
 
 ## Contributing

@@ -110,6 +110,15 @@ fn metrics(
         .map(|ip| config.is_metrics_ip_allowed(ip))
         .unwrap_or(false);
     if !is_allowed {
+        // Only /metrics requests are logged here.
+        if config.log_denied_requests {
+            eprintln!(
+                "Denied /metrics request from {}",
+                client_ip
+                    .map(|ip| ip.to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string())
+            );
+        }
         metrics_requests_denied_total().inc();
         return Err(status::Custom(
             Status::Forbidden,
@@ -137,6 +146,24 @@ fn index() -> &'static str {
     "rs-linux-exporter: /metrics"
 }
 
+#[catch(404)]
+fn not_found(request: &rocket::Request<'_>) -> &'static str {
+    let config = app_config();
+    if config.log_404_requests {
+        let client_ip = request
+            .client_ip()
+            .map(|ip| ip.to_string())
+            .unwrap_or_else(|| "<unknown>".to_string());
+        eprintln!(
+            "404 {} {} from {}",
+            request.method(),
+            request.uri(),
+            client_ip
+        );
+    }
+    "Not Found"
+}
+
 #[launch]
 fn rocket() -> _ {
     runtime::init();
@@ -152,7 +179,9 @@ fn rocket() -> _ {
     let figment = Config::figment()
         .merge(("address", bind.ip().to_string()))
         .merge(("port", bind.port()));
-    rocket::custom(figment).mount("/", routes![index, metrics])
+    rocket::custom(figment)
+        .mount("/", routes![index, metrics])
+        .register("/", catchers![not_found])
 }
 
 #[cfg(test)]

@@ -91,6 +91,8 @@ pub struct AppConfig {
     pub disabled_datasources: Vec<String>,
     pub allowed_metrics_cidrs: Vec<String>,
     pub bind: String,
+    pub log_denied_requests: bool,
+    pub log_404_requests: bool,
     #[serde(skip)]
     disabled_set: HashSet<String>,
     #[serde(skip)]
@@ -106,6 +108,8 @@ impl Default for AppConfig {
             disabled_datasources: Vec::new(),
             allowed_metrics_cidrs: vec!["127.0.0.0/8".to_string()],
             bind: "127.0.0.1:9100".to_string(),
+            log_denied_requests: true,
+            log_404_requests: false,
             disabled_set: HashSet::new(),
             allowed_metrics_nets: Vec::new(),
         }

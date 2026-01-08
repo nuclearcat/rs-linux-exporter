@@ -1,3 +1,5 @@
 disabled_datasources = ["thermal"]
 allowed_metrics_cidrs = ["127.0.0.0/8"]
 bind = "127.0.0.1:9100"
+log_denied_requests = true
+log_404_requests = false
