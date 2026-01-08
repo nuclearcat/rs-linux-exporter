@@ -10,6 +10,7 @@ mod datasource_filesystems;
 mod datasource_hwmon;
 mod datasource_thermal;
 mod datasource_rapl;
+mod datasource_power_supply;
 mod config;
 mod runtime;
 
@@ -68,8 +69,10 @@ fn update_metrics() {
     if config.is_datasource_enabled("rapl") {
         datasource_rapl::update_metrics();
     }
+    if config.is_datasource_enabled("power_supply") {
+        datasource_power_supply::update_metrics();
+    }
     // TODO: Implementation in progress; ethtool netlink stats disabled for now.
-    // TODO: power_supply - /sys/class/power_supply/ (battery, AC adapter)
     // TODO: nvme - /sys/class/nvme/ (NVMe device stats)
     // TODO: edac - /sys/devices/system/edac/ (memory error detection)
     // TODO: numa - /sys/devices/system/node/ (NUMA node memory stats)

@@ -93,6 +93,7 @@ disabled_datasources = ["thermal", "conntrack"]
 | `hwmon` | Hardware sensors (temperature, fan, voltage, power) |
 | `thermal` | Thermal zones and cooling devices |
 | `rapl` | Intel/AMD RAPL energy consumption (CPU, DRAM) |
+| `power_supply` | Battery and AC adapter status |
 
 ## Contributing
 Please check dependency freshness and binary size when submitting changes.
