@@ -1,2 +1,1 @@
-ignore_loop_devices = true
-ignore_ppp_interfaces = true
+disabled_datasources = ["thermal"]

@@ -22,6 +22,78 @@ and the software reliable.
 - Network I/O (bytes, packets, errors per interface)
 - Process count and basic system limits
 
+## Kernel Modules for Hardware Monitoring
+
+The `hwmon` and `thermal` exporters require appropriate kernel modules to be loaded.
+Use `sensors-detect` from the `lm-sensors` package to identify which modules your
+system needs.
+
+### Common Modules
+
+| Module | Description |
+|--------|-------------|
+| `coretemp` | Intel CPU temperature sensors |
+| `k10temp` | AMD CPU temperature sensors (Family 10h+) |
+| `nct6775` | Nuvoton Super I/O chips (common on many motherboards) |
+| `it87` | ITE Super I/O chips |
+| `drivetemp` | SATA/SAS drive temperatures (kernel 5.6+) |
+
+### Quick Setup
+
+```bash
+# Detect and load modules interactively
+sudo sensors-detect
+
+# Or load common modules manually
+sudo modprobe coretemp    # Intel CPUs
+sudo modprobe k10temp     # AMD CPUs
+sudo modprobe drivetemp   # Drive temperatures
+
+# Make persistent at boot
+echo -e "coretemp\nk10temp\ndrivetemp" | sudo tee /etc/modules-load.d/sensors.conf
+```
+
+### Troubleshooting
+
+If sensors are missing:
+- Re-run `sensors-detect` and follow its recommendations
+- Check loaded modules: `lsmod | grep -E 'coretemp|k10temp|nct|it87|drivetemp'`
+- Some motherboard chips (IT8655E, IT8625E, IT8686E) may need out-of-tree drivers
+- For additional readings, try boot parameter: `acpi_enforce_resources=lax`
+
+See [lm_sensors ArchWiki](https://wiki.archlinux.org/title/Lm_sensors) for detailed guidance.
+
+## Configuration
+
+Configuration is optional. Create a `config.toml` file in the working directory.
+
+### Example config.toml
+
+```toml
+# Ignore loop devices in filesystem metrics
+ignore_loop_devices = true
+
+# Ignore PPP interfaces in network metrics
+ignore_ppp_interfaces = true
+
+# Disable specific datasources (will not be polled)
+# Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal
+disabled_datasources = ["thermal", "conntrack"]
+```
+
+### Available Datasources
+
+| Datasource | Description |
+|------------|-------------|
+| `procfs` | System stats from /proc (CPU, memory, network, disk I/O) |
+| `cpufreq` | CPU frequency per core |
+| `softnet` | Network soft interrupt statistics |
+| `conntrack` | Connection tracking statistics |
+| `filesystems` | Filesystem usage statistics |
+| `hwmon` | Hardware sensors (temperature, fan, voltage, power) |
+| `thermal` | Thermal zones and cooling devices |
+| `rapl` | Intel/AMD RAPL energy consumption (CPU, DRAM) |
+
 ## Contributing
 Please check dependency freshness and binary size when submitting changes.
 

@@ -8,6 +8,8 @@ mod datasource_conntrack;
 mod datasource_ethtool;
 mod datasource_filesystems;
 mod datasource_hwmon;
+mod datasource_thermal;
+mod datasource_rapl;
 mod config;
 mod runtime;
 
@@ -40,13 +42,37 @@ fn is_root() -> bool {
 }
 
 fn update_metrics() {
-    datasource_procfs::update_metrics(app_config());
-    datasource_cpufreq::update_metrics();
-    datasource_softnet::update_metrics();
-    datasource_conntrack::update_metrics();
-    datasource_filesystems::update_metrics(app_config());
-    datasource_hwmon::update_metrics();
+    let config = app_config();
+
+    if config.is_datasource_enabled("procfs") {
+        datasource_procfs::update_metrics(config);
+    }
+    if config.is_datasource_enabled("cpufreq") {
+        datasource_cpufreq::update_metrics();
+    }
+    if config.is_datasource_enabled("softnet") {
+        datasource_softnet::update_metrics();
+    }
+    if config.is_datasource_enabled("conntrack") {
+        datasource_conntrack::update_metrics();
+    }
+    if config.is_datasource_enabled("filesystems") {
+        datasource_filesystems::update_metrics(config);
+    }
+    if config.is_datasource_enabled("hwmon") {
+        datasource_hwmon::update_metrics();
+    }
+    if config.is_datasource_enabled("thermal") {
+        datasource_thermal::update_metrics();
+    }
+    if config.is_datasource_enabled("rapl") {
+        datasource_rapl::update_metrics();
+    }
     // TODO: Implementation in progress; ethtool netlink stats disabled for now.
+    // TODO: power_supply - /sys/class/power_supply/ (battery, AC adapter)
+    // TODO: nvme - /sys/class/nvme/ (NVMe device stats)
+    // TODO: edac - /sys/devices/system/edac/ (memory error detection)
+    // TODO: numa - /sys/devices/system/node/ (NUMA node memory stats)
 }
 
 #[get("/metrics")]
