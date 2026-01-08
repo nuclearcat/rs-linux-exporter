@@ -89,6 +89,8 @@ fn pseudo_filesystems() -> &'static HashSet<&'static str> {
             "mqueue",
             "hugetlbfs",
             "rpc_pipefs",
+            "bpf",
+            "efivarfs",
             "overlay",
             "autofs",
             "binfmt_misc",
