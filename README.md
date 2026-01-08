@@ -13,7 +13,7 @@ and the software reliable.
 - Avoid external tool dependencies and unsafe language bindings
 - Favor correctness, safety, and predictable performance
 
-## Planned metrics (initial focus)
+## Initial focus metrics (implemented)
 - System uptime
 - CPU usage and load averages
 - Memory usage (total/free/available/buffers/cache)
@@ -21,6 +21,23 @@ and the software reliable.
 - Disk I/O (bytes, ops, time per device)
 - Network I/O (bytes, packets, errors per interface)
 - Process count and basic system limits
+
+### Available Datasources
+
+| Datasource | Description |
+|------------|-------------|
+| `procfs` | System stats from /proc (CPU, memory, network, disk I/O) |
+| `cpufreq` | CPU frequency per core |
+| `softnet` | Network soft interrupt statistics |
+| `conntrack` | Connection tracking statistics |
+| `filesystems` | Filesystem usage statistics |
+| `hwmon` | Hardware sensors (temperature, fan, voltage, power) |
+| `thermal` | Thermal zones and cooling devices |
+| `rapl` | Intel/AMD RAPL energy consumption (CPU, DRAM) |
+| `power_supply` | Battery and AC adapter status |
+| `nvme` | NVMe device information (model, serial, state) |
+| `edac` | Memory error detection (correctable/uncorrectable) |
+| `numa` | NUMA node memory and hit/miss statistics |
 
 ## Kernel Modules for Hardware Monitoring
 
@@ -83,23 +100,6 @@ ignore_veth_interfaces = true
 # Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal
 disabled_datasources = ["thermal", "conntrack"]
 ```
-
-### Available Datasources
-
-| Datasource | Description |
-|------------|-------------|
-| `procfs` | System stats from /proc (CPU, memory, network, disk I/O) |
-| `cpufreq` | CPU frequency per core |
-| `softnet` | Network soft interrupt statistics |
-| `conntrack` | Connection tracking statistics |
-| `filesystems` | Filesystem usage statistics |
-| `hwmon` | Hardware sensors (temperature, fan, voltage, power) |
-| `thermal` | Thermal zones and cooling devices |
-| `rapl` | Intel/AMD RAPL energy consumption (CPU, DRAM) |
-| `power_supply` | Battery and AC adapter status |
-| `nvme` | NVMe device information (model, serial, state) |
-| `edac` | Memory error detection (correctable/uncorrectable) |
-| `numa` | NUMA node memory and hit/miss statistics |
 
 ## Contributing
 Please check dependency freshness and binary size when submitting changes.
