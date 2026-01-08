@@ -382,6 +382,9 @@ fn update_netdev(
         if config.ignore_ppp_interfaces && name.starts_with("ppp") {
             continue;
         }
+        if config.ignore_veth_interfaces && name.starts_with("veth") {
+            continue;
+        }
         let netdev = &metrics.netdev;
         let iface = name.as_str();
         netdev

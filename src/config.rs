@@ -82,6 +82,7 @@ fn check_subsystem_available(check: &SubsystemCheck) -> bool {
 pub struct AppConfig {
     pub ignore_loop_devices: bool,
     pub ignore_ppp_interfaces: bool,
+    pub ignore_veth_interfaces: bool,
     #[serde(default)]
     pub disabled_datasources: Vec<String>,
     #[serde(skip)]
@@ -93,6 +94,7 @@ impl Default for AppConfig {
         Self {
             ignore_loop_devices: true,
             ignore_ppp_interfaces: true,
+            ignore_veth_interfaces: true,
             disabled_datasources: Vec::new(),
             disabled_set: HashSet::new(),
         }

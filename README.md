@@ -76,6 +76,9 @@ ignore_loop_devices = true
 # Ignore PPP interfaces in network metrics
 ignore_ppp_interfaces = true
 
+# Ignore veth interfaces in network metrics
+ignore_veth_interfaces = true
+
 # Disable specific datasources (will not be polled)
 # Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal
 disabled_datasources = ["thermal", "conntrack"]
