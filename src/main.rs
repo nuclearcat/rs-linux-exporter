@@ -136,7 +136,10 @@ fn rocket() -> _ {
     if !is_root() {
         eprintln!("\x1b[31mNon-root: ethtool stats collection disabled.\x1b[0m");
     }
-    let figment = Config::figment().merge(("port", 9100));
+    let bind = app_config().bind_addr();
+    let figment = Config::figment()
+        .merge(("address", bind.ip().to_string()))
+        .merge(("port", bind.port()));
     rocket::custom(figment).mount("/", routes![index, metrics])
 }
 

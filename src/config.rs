@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::ErrorKind;
 use std::net::IpAddr;
+use std::net::SocketAddr;
 use std::path::Path;
 use std::str::FromStr;
 use ipnet::IpNet;
@@ -89,6 +90,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub disabled_datasources: Vec<String>,
     pub allowed_metrics_cidrs: Vec<String>,
+    pub bind: String,
     #[serde(skip)]
     disabled_set: HashSet<String>,
     #[serde(skip)]
@@ -103,6 +105,7 @@ impl Default for AppConfig {
             ignore_veth_interfaces: true,
             disabled_datasources: Vec::new(),
             allowed_metrics_cidrs: vec!["127.0.0.0/8".to_string()],
+            bind: "127.0.0.1:9100".to_string(),
             disabled_set: HashSet::new(),
             allowed_metrics_nets: Vec::new(),
         }
@@ -110,6 +113,13 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    pub fn bind_addr(&self) -> SocketAddr {
+        self.bind.parse().unwrap_or_else(|err| {
+            eprintln!("Invalid bind address '{}': {err}", self.bind);
+            "127.0.0.1:9100".parse().expect("default bind")
+        })
+    }
+
     pub fn is_metrics_ip_allowed(&self, ip: IpAddr) -> bool {
         self.allowed_metrics_nets.iter().any(|net| net.contains(&ip))
     }

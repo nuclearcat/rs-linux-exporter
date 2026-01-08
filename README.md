@@ -102,6 +102,9 @@ disabled_datasources = ["thermal", "conntrack"]
 
 # Restrict /metrics access to these CIDR ranges
 allowed_metrics_cidrs = ["127.0.0.0/8"]
+
+# Bind address for the HTTP server
+bind = "127.0.0.1:9100"
 ```
 
 ## Contributing
