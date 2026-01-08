@@ -59,6 +59,8 @@ const ETH_SS_STATS_ETH_CTRL: u32 = 19;
 const ETH_SS_STATS_RMON: u32 = 20;
 const ETH_SS_STATS_PHY: u32 = 21;
 
+type StatsGroup = (u32, u32, Vec<(u32, u64)>);
+
 #[repr(C)]
 struct NlMsgHdr {
     nlmsg_len: u32,
@@ -200,7 +202,7 @@ fn build_message(nlmsg_type: u16, flags: u16, seq: u32, cmd: u8, version: u8) ->
     buf
 }
 
-fn finalize_message(buf: &mut Vec<u8>) {
+fn finalize_message(buf: &mut [u8]) {
     let len = buf.len() as u32;
     buf[..4].copy_from_slice(&len.to_ne_bytes());
 }
@@ -395,10 +397,8 @@ fn get_ethtool_family_id(fd: i32, seq: &mut u32) -> io::Result<u16> {
             eprintln!("ethtool: ctrl attrs {}", summary.join(", "));
         }
         for (attr_type, payload) in attrs {
-            if attr_type == CTRL_ATTR_FAMILY_ID {
-                if let Some(id) = parse_u16(payload) {
-                    return Ok(id);
-                }
+            if attr_type == CTRL_ATTR_FAMILY_ID && let Some(id) = parse_u16(payload) {
+                return Ok(id);
             }
         }
     }
@@ -515,12 +515,7 @@ fn request_stringsets(
     Ok(stringsets)
 }
 
-fn request_stats(
-    fd: i32,
-    family_id: u16,
-    seq: &mut u32,
-    dev: &str,
-) -> io::Result<Vec<(u32, u32, Vec<(u32, u64)>)>> {
+fn request_stats(fd: i32, family_id: u16, seq: &mut u32, dev: &str) -> io::Result<Vec<StatsGroup>> {
     *seq += 1;
     let mut msg = build_message(
         family_id,
@@ -609,12 +604,11 @@ fn request_stats(
 }
 
 fn stringset_name(stringsets: &HashMap<u32, Vec<String>>, ss_id: u32, stat_id: u32) -> String {
-    if let Some(strings) = stringsets.get(&ss_id) {
-        if let Some(name) = strings.get(stat_id as usize) {
-            if !name.is_empty() {
-                return name.clone();
-            }
-        }
+    if let Some(strings) = stringsets.get(&ss_id)
+        && let Some(name) = strings.get(stat_id as usize)
+        && !name.is_empty()
+    {
+        return name.clone();
     }
     format!("stat_{}", stat_id)
 }

@@ -191,14 +191,12 @@ fn parse_stats_message(data: &[u8]) -> Result<CpuStats, String> {
         let payload_len = attr_len - mem::size_of::<NlAttr>();
 
         // Stats are 32-bit unsigned integers (big-endian from kernel)
-        if payload_len >= 4 {
-            if let Some(name) = attr_type_to_name(attr_type) {
-                let value_bytes: [u8; 4] = data[payload_offset..payload_offset + 4]
-                    .try_into()
-                    .unwrap_or([0; 4]);
-                let value = u32::from_be_bytes(value_bytes) as u64;
-                stats.counters.insert(name.to_string(), value);
-            }
+        if payload_len >= 4 && let Some(name) = attr_type_to_name(attr_type) {
+            let value_bytes: [u8; 4] = data[payload_offset..payload_offset + 4]
+                .try_into()
+                .unwrap_or([0; 4]);
+            let value = u32::from_be_bytes(value_bytes) as u64;
+            stats.counters.insert(name.to_string(), value);
         }
 
         // Move to next attribute (aligned)
