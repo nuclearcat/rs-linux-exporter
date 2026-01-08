@@ -25,6 +25,7 @@ use rocket::response::status;
 use std::sync::OnceLock;
 
 static METRICS_REQUESTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
+static METRICS_REQUESTS_DENIED_TOTAL: OnceLock<IntCounter> = OnceLock::new();
 static APP_CONFIG: OnceLock<AppConfig> = OnceLock::new();
 static IS_ROOT: OnceLock<bool> = OnceLock::new();
 
@@ -35,6 +36,16 @@ fn metrics_requests_total() -> &'static IntCounter {
             "Total number of /metrics requests"
         )
         .expect("register metrics_requests_total")
+    })
+}
+
+fn metrics_requests_denied_total() -> &'static IntCounter {
+    METRICS_REQUESTS_DENIED_TOTAL.get_or_init(|| {
+        prometheus::register_int_counter!(
+            "metrics_requests_denied_total",
+            "Total number of /metrics requests denied by ACL"
+        )
+        .expect("register metrics_requests_denied_total")
     })
 }
 
@@ -92,19 +103,20 @@ fn update_metrics() {
 fn metrics(
     request: &rocket::Request<'_>,
 ) -> Result<(ContentType, String), status::Custom<(ContentType, String)>> {
+    metrics_requests_total().inc();
     let config = app_config();
     let client_ip = request.client_ip();
     let is_allowed = client_ip
         .map(|ip| config.is_metrics_ip_allowed(ip))
         .unwrap_or(false);
     if !is_allowed {
+        metrics_requests_denied_total().inc();
         return Err(status::Custom(
             Status::Forbidden,
             (ContentType::Plain, "access denied".to_string()),
         ));
     }
 
-    metrics_requests_total().inc();
     update_metrics();
 
     let encoder = TextEncoder::new();
