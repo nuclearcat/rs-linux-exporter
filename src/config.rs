@@ -58,14 +58,12 @@ const SUBSYSTEM_CHECKS: &[SubsystemCheck] = &[
     },
 ];
 
-fn check_subsystem_available(check: &SubsystemCheck) -> bool {
-    let path = Path::new(check.path);
-
+fn check_path_available(path: &Path, require_entries: bool) -> bool {
     if !path.exists() {
         return false;
     }
 
-    if check.require_entries {
+    if require_entries {
         match fs::read_dir(path) {
             Ok(mut entries) => entries.next().is_some(),
             Err(_) => false,
@@ -73,6 +71,10 @@ fn check_subsystem_available(check: &SubsystemCheck) -> bool {
     } else {
         true
     }
+}
+
+fn check_subsystem_available(check: &SubsystemCheck) -> bool {
+    check_path_available(Path::new(check.path), check.require_entries)
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,5 +145,65 @@ impl AppConfig {
                 self.disable_datasource(check.name);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_check_path_available_missing_path() {
+        let path = Path::new("/nonexistent/path/that/does/not/exist");
+        assert!(!check_path_available(path, true));
+    }
+
+    #[test]
+    fn test_check_path_available_empty_dir() {
+        let dir = TempDir::new().unwrap();
+        assert!(!check_path_available(dir.path(), true));
+    }
+
+    #[test]
+    fn test_check_path_available_with_entries() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("entry"), "data").unwrap();
+        assert!(check_path_available(dir.path(), true));
+    }
+
+    #[test]
+    fn test_check_path_available_no_entries_required() {
+        let dir = TempDir::new().unwrap();
+        // Should return true even if empty when require_entries is false
+        assert!(check_path_available(dir.path(), false));
+    }
+
+    #[test]
+    fn test_default_config_all_enabled() {
+        let config = AppConfig::default();
+        assert!(config.is_datasource_enabled("numa"));
+        assert!(config.is_datasource_enabled("edac"));
+        assert!(config.is_datasource_enabled("procfs"));
+    }
+
+    #[test]
+    fn test_disable_datasource() {
+        let mut config = AppConfig::default();
+        assert!(config.is_datasource_enabled("test"));
+        config.disable_datasource("test");
+        assert!(!config.is_datasource_enabled("test"));
+    }
+
+    #[test]
+    fn test_build_disabled_set_from_vec() {
+        let mut config = AppConfig {
+            disabled_datasources: vec!["thermal".to_string(), "numa".to_string()],
+            ..Default::default()
+        };
+        config.build_disabled_set();
+        assert!(!config.is_datasource_enabled("thermal"));
+        assert!(!config.is_datasource_enabled("numa"));
+        assert!(config.is_datasource_enabled("procfs"));
     }
 }

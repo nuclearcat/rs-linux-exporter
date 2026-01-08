@@ -113,6 +113,8 @@ fn rocket() -> _ {
     if runtime::debug_enabled() {
         eprintln!("Debug logging enabled.");
     }
+    // Initialize config early to run subsystem availability checks and print messages
+    let _ = app_config();
     if !is_root() {
         eprintln!("\x1b[31mNon-root: ethtool stats collection disabled.\x1b[0m");
     }
