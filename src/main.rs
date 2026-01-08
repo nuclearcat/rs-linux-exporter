@@ -1,27 +1,27 @@
 #[macro_use]
 extern crate rocket;
 
-mod datasource_procfs;
-mod datasource_cpufreq;
-mod datasource_softnet;
+mod config;
 mod datasource_conntrack;
+mod datasource_cpufreq;
+mod datasource_edac;
 mod datasource_ethtool;
 mod datasource_filesystems;
 mod datasource_hwmon;
-mod datasource_thermal;
-mod datasource_rapl;
-mod datasource_power_supply;
-mod datasource_nvme;
-mod datasource_edac;
 mod datasource_numa;
-mod config;
+mod datasource_nvme;
+mod datasource_power_supply;
+mod datasource_procfs;
+mod datasource_rapl;
+mod datasource_softnet;
+mod datasource_thermal;
 mod runtime;
 
-use prometheus::{Encoder, IntCounter, TextEncoder};
-use rocket::http::ContentType;
-use rocket::Config;
-use std::sync::OnceLock;
 use crate::config::AppConfig;
+use prometheus::{Encoder, IntCounter, TextEncoder};
+use rocket::Config;
+use rocket::http::ContentType;
+use std::sync::OnceLock;
 
 static METRICS_REQUESTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
 static APP_CONFIG: OnceLock<AppConfig> = OnceLock::new();
@@ -99,7 +99,10 @@ fn metrics() -> (ContentType, String) {
         .encode(&metric_families, &mut buffer)
         .expect("encode metrics");
 
-    (ContentType::Plain, String::from_utf8(buffer).unwrap_or_default())
+    (
+        ContentType::Plain,
+        String::from_utf8(buffer).unwrap_or_default(),
+    )
 }
 
 #[get("/")]
@@ -186,7 +189,12 @@ mod tests {
         let count2 = extract_counter_value(&body2, "metrics_requests_total");
 
         // Counter should have incremented
-        assert!(count2 > count1, "Counter should increment: {} -> {}", count1, count2);
+        assert!(
+            count2 > count1,
+            "Counter should increment: {} -> {}",
+            count1,
+            count2
+        );
     }
 
     #[test]
@@ -196,7 +204,10 @@ mod tests {
 
         let content_type = response.content_type();
         assert!(content_type.is_some());
-        assert_eq!(content_type.unwrap().to_string(), "text/plain; charset=utf-8");
+        assert_eq!(
+            content_type.unwrap().to_string(),
+            "text/plain; charset=utf-8"
+        );
     }
 
     #[test]

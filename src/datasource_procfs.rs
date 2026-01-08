@@ -1,8 +1,8 @@
 use crate::config::AppConfig;
-use prometheus::{Gauge, GaugeVec};
-use procfs::prelude::{Current, CurrentSI};
 use procfs::net::{TcpState, UdpState};
+use procfs::prelude::{Current, CurrentSI};
 use procfs::{CpuTime, KernelStats, LoadAverage, Meminfo, Uptime};
+use prometheus::{Gauge, GaugeVec};
 use std::sync::OnceLock;
 
 struct ProcfsMetrics {
@@ -281,15 +281,9 @@ fn update_kernel_stats(metrics: &ProcfsMetrics, stats: &KernelStats) {
         set_cpu_time(&metrics.cpu_seconds_total, &label, cpu);
     }
 
-    metrics
-        .cpu_context_switches_total
-        .set(stats.ctxt as f64);
-    metrics
-        .cpu_boot_time_seconds
-        .set(stats.btime as f64);
-    metrics
-        .processes_forked_total
-        .set(stats.processes as f64);
+    metrics.cpu_context_switches_total.set(stats.ctxt as f64);
+    metrics.cpu_boot_time_seconds.set(stats.btime as f64);
+    metrics.processes_forked_total.set(stats.processes as f64);
 
     if let Some(value) = stats.procs_running {
         metrics.processes_running.set(value as f64);
@@ -382,7 +376,7 @@ fn update_netdev(
         if config.ignore_ppp_interfaces && name.starts_with("ppp") {
             continue;
         }
-        if config.ignore_veth_interfaces && name.starts_with("veth") {
+        if config.ignore_veth_interfaces && (name.starts_with("veth") || name.starts_with("br-")) {
             continue;
         }
         let netdev = &metrics.netdev;

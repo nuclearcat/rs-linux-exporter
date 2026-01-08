@@ -328,9 +328,8 @@ fn recv_messages(fd: i32, seq: u32) -> io::Result<Vec<Vec<u8>>> {
         let len = len as usize;
         let mut offset = 0;
         while offset + mem::size_of::<NlMsgHdr>() <= len {
-            let hdr: NlMsgHdr = unsafe {
-                std::ptr::read_unaligned(buffer.as_ptr().add(offset) as *const NlMsgHdr)
-            };
+            let hdr: NlMsgHdr =
+                unsafe { std::ptr::read_unaligned(buffer.as_ptr().add(offset) as *const NlMsgHdr) };
             if hdr.nlmsg_seq != seq {
                 offset += nlmsg_align(hdr.nlmsg_len as usize);
                 continue;
@@ -408,7 +407,6 @@ fn get_ethtool_family_id(fd: i32, seq: &mut u32) -> io::Result<u16> {
         "ethtool family id not found",
     ))
 }
-
 
 fn extract_header_name(header_payload: &[u8]) -> Option<String> {
     for (attr_type, payload) in parse_attrs(header_payload) {
@@ -551,54 +549,54 @@ fn request_stats(
     send_message(fd, &msg)?;
     let replies = recv_messages(fd, *seq)?;
 
-        let mut groups = Vec::new();
-        for reply in replies {
-            if reply.len() < mem::size_of::<GenlMsgHdr>() {
+    let mut groups = Vec::new();
+    for reply in replies {
+        if reply.len() < mem::size_of::<GenlMsgHdr>() {
+            continue;
+        }
+        let attrs = parse_attrs(&reply[mem::size_of::<GenlMsgHdr>()..]);
+        let mut matched = false;
+        for (attr_type, payload) in attrs {
+            if attr_type == ETHTOOL_A_STATS_HEADER {
+                if let Some(name) = extract_header_name(payload) {
+                    matched = name == dev;
+                }
                 continue;
             }
-            let attrs = parse_attrs(&reply[mem::size_of::<GenlMsgHdr>()..]);
-            let mut matched = false;
-            for (attr_type, payload) in attrs {
-                if attr_type == ETHTOOL_A_STATS_HEADER {
-                    if let Some(name) = extract_header_name(payload) {
-                        matched = name == dev;
+            if attr_type != ETHTOOL_A_STATS_GRP {
+                continue;
+            }
+            if !matched {
+                continue;
+            }
+            let mut grp_id = None;
+            let mut ss_id = None;
+            let mut stats = Vec::new();
+            if debug_enabled() {
+                let attr_types: Vec<String> = parse_attrs(payload)
+                    .iter()
+                    .map(|(t, v)| format!("{t}:{len}", len = v.len()))
+                    .collect();
+                eprintln!("ethtool: grp attrs {dev}: {}", attr_types.join(", "));
+            }
+            for (grp_attr, grp_payload) in parse_attrs(payload) {
+                if grp_attr == ETHTOOL_A_STATS_GRP_ID {
+                    grp_id = parse_u32(grp_payload);
+                } else if grp_attr == ETHTOOL_A_STATS_GRP_SS_ID {
+                    ss_id = parse_u32(grp_payload);
+                } else if grp_attr == ETHTOOL_A_STATS_GRP_STAT {
+                    if debug_enabled() {
+                        let inner: Vec<String> = parse_attrs(grp_payload)
+                            .iter()
+                            .map(|(t, v)| format!("{t}:{len}", len = v.len()))
+                            .collect();
+                        eprintln!("ethtool: grp stat inner {dev}: {}", inner.join(", "));
                     }
-                    continue;
-                }
-                if attr_type != ETHTOOL_A_STATS_GRP {
-                    continue;
-                }
-                if !matched {
-                    continue;
-                }
-                let mut grp_id = None;
-                let mut ss_id = None;
-                let mut stats = Vec::new();
-                if debug_enabled() {
-                    let attr_types: Vec<String> = parse_attrs(payload)
-                        .iter()
-                        .map(|(t, v)| format!("{t}:{len}", len = v.len()))
-                        .collect();
-                    eprintln!("ethtool: grp attrs {dev}: {}", attr_types.join(", "));
-                }
-                for (grp_attr, grp_payload) in parse_attrs(payload) {
-                    if grp_attr == ETHTOOL_A_STATS_GRP_ID {
-                        grp_id = parse_u32(grp_payload);
-                    } else if grp_attr == ETHTOOL_A_STATS_GRP_SS_ID {
-                        ss_id = parse_u32(grp_payload);
-                    } else if grp_attr == ETHTOOL_A_STATS_GRP_STAT {
-                        if debug_enabled() {
-                            let inner: Vec<String> = parse_attrs(grp_payload)
-                                .iter()
-                                .map(|(t, v)| format!("{t}:{len}", len = v.len()))
-                                .collect();
-                            eprintln!("ethtool: grp stat inner {dev}: {}", inner.join(", "));
+                    for (stat_attr, stat_payload) in parse_attrs(grp_payload) {
+                        if let Some(value) = parse_u64(stat_payload) {
+                            stats.push((stat_attr as u32, value));
                         }
-                        for (stat_attr, stat_payload) in parse_attrs(grp_payload) {
-                            if let Some(value) = parse_u64(stat_payload) {
-                                stats.push((stat_attr as u32, value));
-                            }
-                        }
+                    }
                 }
             }
             if let (Some(group_id), Some(stringset_id)) = (grp_id, ss_id) {

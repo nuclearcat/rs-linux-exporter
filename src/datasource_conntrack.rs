@@ -101,8 +101,7 @@ fn nlmsg_align(len: usize) -> usize {
 
 /// Build the netlink request message for conntrack stats
 fn create_stats_request(seq: u32) -> Vec<u8> {
-    let nlmsg_type =
-        ((NFNL_SUBSYS_CTNETLINK as u16) << 8) | (IPCTNL_MSG_CT_GET_STATS_CPU as u16);
+    let nlmsg_type = ((NFNL_SUBSYS_CTNETLINK as u16) << 8) | (IPCTNL_MSG_CT_GET_STATS_CPU as u16);
     let total_len = mem::size_of::<NlMsgHdr>() + mem::size_of::<NfGenMsg>();
 
     let mut buf = vec![0u8; total_len];
@@ -259,7 +258,8 @@ fn conntrack_module_loaded() -> bool {
 /// Returns per-CPU statistics or an error.
 pub fn collect_stats() -> Result<Vec<CpuStats>, String> {
     // Create socket
-    let fd = create_netlink_socket().map_err(|e| format!("Failed to create netlink socket: {e}"))?;
+    let fd =
+        create_netlink_socket().map_err(|e| format!("Failed to create netlink socket: {e}"))?;
 
     // Ensure socket is closed on exit
     struct SocketGuard(i32);
@@ -318,9 +318,8 @@ pub fn collect_stats() -> Result<Vec<CpuStats>, String> {
         // Parse netlink messages in buffer
         let mut offset = 0;
         while offset + mem::size_of::<NlMsgHdr>() <= len {
-            let hdr: NlMsgHdr = unsafe {
-                std::ptr::read_unaligned(buffer.as_ptr().add(offset) as *const NlMsgHdr)
-            };
+            let hdr: NlMsgHdr =
+                unsafe { std::ptr::read_unaligned(buffer.as_ptr().add(offset) as *const NlMsgHdr) };
 
             let msg_len = hdr.nlmsg_len as usize;
             if msg_len < mem::size_of::<NlMsgHdr>() || offset + msg_len > len {

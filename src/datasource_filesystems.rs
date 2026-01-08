@@ -108,27 +108,13 @@ fn is_pseudo_fs(fstype: &str) -> bool {
 }
 
 fn remove_metrics(metrics: &FilesystemMetrics, labels: &[&str; 3]) {
-    let _ = metrics
-        .filesystem_size_bytes
-        .remove_label_values(labels);
-    let _ = metrics
-        .filesystem_free_bytes
-        .remove_label_values(labels);
-    let _ = metrics
-        .filesystem_avail_bytes
-        .remove_label_values(labels);
-    let _ = metrics
-        .filesystem_used_bytes
-        .remove_label_values(labels);
-    let _ = metrics
-        .filesystem_files
-        .remove_label_values(labels);
-    let _ = metrics
-        .filesystem_files_free
-        .remove_label_values(labels);
-    let _ = metrics
-        .filesystem_files_used
-        .remove_label_values(labels);
+    let _ = metrics.filesystem_size_bytes.remove_label_values(labels);
+    let _ = metrics.filesystem_free_bytes.remove_label_values(labels);
+    let _ = metrics.filesystem_avail_bytes.remove_label_values(labels);
+    let _ = metrics.filesystem_used_bytes.remove_label_values(labels);
+    let _ = metrics.filesystem_files.remove_label_values(labels);
+    let _ = metrics.filesystem_files_free.remove_label_values(labels);
+    let _ = metrics.filesystem_files_used.remove_label_values(labels);
 }
 
 pub fn update_metrics(config: &AppConfig) {
@@ -139,7 +125,11 @@ pub fn update_metrics(config: &AppConfig) {
 
     let metrics = metrics();
     for mount in mounts {
-        let labels = [mount.fs_file.as_str(), mount.fs_spec.as_str(), mount.fs_vfstype.as_str()];
+        let labels = [
+            mount.fs_file.as_str(),
+            mount.fs_spec.as_str(),
+            mount.fs_vfstype.as_str(),
+        ];
         if is_pseudo_fs(&mount.fs_vfstype) {
             remove_metrics(metrics, &labels);
             continue;
