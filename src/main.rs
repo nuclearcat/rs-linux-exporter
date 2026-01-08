@@ -7,6 +7,7 @@ mod datasource_softnet;
 mod datasource_conntrack;
 mod datasource_ethtool;
 mod datasource_filesystems;
+mod datasource_hwmon;
 mod config;
 mod runtime;
 
@@ -44,6 +45,7 @@ fn update_metrics() {
     datasource_softnet::update_metrics();
     datasource_conntrack::update_metrics();
     datasource_filesystems::update_metrics(app_config());
+    datasource_hwmon::update_metrics();
     // TODO: Implementation in progress; ethtool netlink stats disabled for now.
 }
 
