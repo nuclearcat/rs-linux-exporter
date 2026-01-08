@@ -22,6 +22,7 @@ use prometheus::{Encoder, IntCounter, TextEncoder};
 use rocket::Config;
 use rocket::http::{ContentType, Status};
 use rocket::response::status;
+use std::net::IpAddr;
 use std::sync::OnceLock;
 
 static METRICS_REQUESTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
@@ -101,11 +102,10 @@ fn update_metrics() {
 
 #[get("/metrics")]
 fn metrics(
-    request: &rocket::Request<'_>,
+    client_ip: Option<IpAddr>,
 ) -> Result<(ContentType, String), status::Custom<(ContentType, String)>> {
     metrics_requests_total().inc();
     let config = app_config();
-    let client_ip = request.client_ip();
     let is_allowed = client_ip
         .map(|ip| config.is_metrics_ip_allowed(ip))
         .unwrap_or(false);
