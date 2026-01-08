@@ -10,3 +10,6 @@ rocket = "0.5.0"
 libc = "0.2"
 toml = "0.9.10"
 serde = { version = "1.0.228", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3"

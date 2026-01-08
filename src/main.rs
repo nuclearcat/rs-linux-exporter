@@ -11,6 +11,7 @@ mod datasource_hwmon;
 mod datasource_thermal;
 mod datasource_rapl;
 mod datasource_power_supply;
+mod datasource_nvme;
 mod config;
 mod runtime;
 
@@ -72,8 +73,10 @@ fn update_metrics() {
     if config.is_datasource_enabled("power_supply") {
         datasource_power_supply::update_metrics();
     }
+    if config.is_datasource_enabled("nvme") {
+        datasource_nvme::update_metrics();
+    }
     // TODO: Implementation in progress; ethtool netlink stats disabled for now.
-    // TODO: nvme - /sys/class/nvme/ (NVMe device stats)
     // TODO: edac - /sys/devices/system/edac/ (memory error detection)
     // TODO: numa - /sys/devices/system/node/ (NUMA node memory stats)
 }
@@ -123,7 +126,18 @@ mod tests {
         let response = client.get("/").dispatch();
 
         assert_eq!(response.status(), Status::Ok);
-        assert_eq!(response.into_string().unwrap_or_default(), "rs-linux-exporter: /metrics");
+        assert_eq!(
+            response.into_string().unwrap_or_default(),
+            "rs-linux-exporter: /metrics"
+        );
+    }
+
+    #[test]
+    fn metrics_endpoint_returns_ok() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/metrics").dispatch();
+
+        assert_eq!(response.status(), Status::Ok);
     }
 
     #[test]
@@ -131,8 +145,71 @@ mod tests {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
         let response = client.get("/metrics").dispatch();
 
-        assert_eq!(response.status(), Status::Ok);
         let body = response.into_string().unwrap_or_default();
         assert!(body.contains("metrics_requests_total"));
+    }
+
+    #[test]
+    fn metrics_endpoint_contains_help_and_type() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/metrics").dispatch();
+
+        let body = response.into_string().unwrap_or_default();
+        // Prometheus format requires HELP and TYPE lines
+        assert!(body.contains("# HELP"));
+        assert!(body.contains("# TYPE"));
+    }
+
+    #[test]
+    fn metrics_endpoint_increments_counter() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+
+        // First request
+        let response1 = client.get("/metrics").dispatch();
+        let body1 = response1.into_string().unwrap_or_default();
+
+        // Find metrics_requests_total value
+        let count1 = extract_counter_value(&body1, "metrics_requests_total");
+
+        // Second request
+        let response2 = client.get("/metrics").dispatch();
+        let body2 = response2.into_string().unwrap_or_default();
+
+        let count2 = extract_counter_value(&body2, "metrics_requests_total");
+
+        // Counter should have incremented
+        assert!(count2 > count1, "Counter should increment: {} -> {}", count1, count2);
+    }
+
+    #[test]
+    fn metrics_endpoint_has_correct_content_type() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/metrics").dispatch();
+
+        let content_type = response.content_type();
+        assert!(content_type.is_some());
+        assert_eq!(content_type.unwrap().to_string(), "text/plain; charset=utf-8");
+    }
+
+    #[test]
+    fn unknown_endpoint_returns_404() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/unknown").dispatch();
+
+        assert_eq!(response.status(), Status::NotFound);
+    }
+
+    /// Helper to extract counter value from Prometheus text format
+    fn extract_counter_value(body: &str, metric_name: &str) -> u64 {
+        for line in body.lines() {
+            if line.starts_with(metric_name) && !line.starts_with('#') {
+                // Format: metric_name value
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    return parts[1].parse().unwrap_or(0);
+                }
+            }
+        }
+        0
     }
 }

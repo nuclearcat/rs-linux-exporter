@@ -153,7 +153,10 @@ fn update_hwmon_device(hwmon_dir: &Path) {
 }
 
 pub fn update_metrics() {
-    let base = Path::new("/sys/class/hwmon");
+    update_metrics_from_path(Path::new("/sys/class/hwmon"));
+}
+
+fn update_metrics_from_path(base: &Path) {
     let entries = match fs::read_dir(base) {
         Ok(entries) => entries,
         Err(_) => return,
@@ -169,5 +172,103 @@ pub fn update_metrics() {
             };
             update_hwmon_device(&resolved);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn create_mock_hwmon(dir: &Path, name: &str, chip_name: &str) -> std::path::PathBuf {
+        let hwmon_dir = dir.join(name);
+        fs::create_dir_all(&hwmon_dir).unwrap();
+        fs::write(hwmon_dir.join("name"), format!("{}\n", chip_name)).unwrap();
+        hwmon_dir
+    }
+
+    #[test]
+    fn test_read_value_parses_integer() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("temp1_input");
+        fs::write(&file, "45000\n").unwrap();
+        assert_eq!(read_value(&file), Some(45000));
+    }
+
+    #[test]
+    fn test_read_value_handles_invalid() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("temp1_input");
+        fs::write(&file, "not_a_number\n").unwrap();
+        assert_eq!(read_value(&file), None);
+    }
+
+    #[test]
+    fn test_read_string_trims_whitespace() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("name");
+        fs::write(&file, "  coretemp  \n").unwrap();
+        assert_eq!(read_string(&file), Some("coretemp".to_string()));
+    }
+
+    #[test]
+    fn test_get_sensor_label_with_label_file() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("temp_1_label"), "Core 0\n").unwrap();
+        assert_eq!(get_sensor_label(dir.path(), "temp", "1"), "Core 0");
+    }
+
+    #[test]
+    fn test_get_sensor_label_fallback() {
+        let dir = TempDir::new().unwrap();
+        // No label file exists
+        assert_eq!(get_sensor_label(dir.path(), "temp", "1"), "temp_1");
+    }
+
+    #[test]
+    fn test_update_hwmon_device_with_temp_sensor() {
+        let dir = TempDir::new().unwrap();
+        let hwmon = create_mock_hwmon(dir.path(), "hwmon0", "coretemp");
+        fs::write(hwmon.join("temp1_input"), "45000\n").unwrap();
+
+        // Should not panic
+        update_hwmon_device(&hwmon);
+    }
+
+    #[test]
+    fn test_update_hwmon_device_with_fan_sensor() {
+        let dir = TempDir::new().unwrap();
+        let hwmon = create_mock_hwmon(dir.path(), "hwmon0", "nct6775");
+        fs::write(hwmon.join("fan1_input"), "1200\n").unwrap();
+
+        update_hwmon_device(&hwmon);
+    }
+
+    #[test]
+    fn test_update_hwmon_device_with_voltage_sensor() {
+        let dir = TempDir::new().unwrap();
+        let hwmon = create_mock_hwmon(dir.path(), "hwmon0", "nct6775");
+        fs::write(hwmon.join("in0_input"), "1200\n").unwrap();
+
+        update_hwmon_device(&hwmon);
+    }
+
+    #[test]
+    fn test_update_hwmon_device_skips_without_name() {
+        let dir = TempDir::new().unwrap();
+        let hwmon = dir.path().join("hwmon0");
+        fs::create_dir_all(&hwmon).unwrap();
+        // No "name" file
+        fs::write(hwmon.join("temp1_input"), "45000\n").unwrap();
+
+        // Should return early without panicking
+        update_hwmon_device(&hwmon);
+    }
+
+    #[test]
+    fn test_update_metrics_from_path_handles_empty_dir() {
+        let dir = TempDir::new().unwrap();
+        // Empty directory - should not panic
+        update_metrics_from_path(dir.path());
     }
 }

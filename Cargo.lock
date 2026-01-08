@@ -1049,6 +1049,7 @@ dependencies = [
  "prometheus",
  "rocket",
  "serde",
+ "tempfile",
  "toml 0.9.10+spec-1.1.0",
 ]
 

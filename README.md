@@ -94,6 +94,7 @@ disabled_datasources = ["thermal", "conntrack"]
 | `thermal` | Thermal zones and cooling devices |
 | `rapl` | Intel/AMD RAPL energy consumption (CPU, DRAM) |
 | `power_supply` | Battery and AC adapter status |
+| `nvme` | NVMe device information (model, serial, state) |
 
 ## Contributing
 Please check dependency freshness and binary size when submitting changes.
