@@ -2,7 +2,10 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
 use std::io::ErrorKind;
+use std::net::IpAddr;
 use std::path::Path;
+use std::str::FromStr;
+use ipnet::IpNet;
 
 /// Subsystem availability checks
 struct SubsystemCheck {
@@ -85,8 +88,11 @@ pub struct AppConfig {
     pub ignore_veth_interfaces: bool,
     #[serde(default)]
     pub disabled_datasources: Vec<String>,
+    pub allowed_metrics_cidrs: Vec<String>,
     #[serde(skip)]
     disabled_set: HashSet<String>,
+    #[serde(skip)]
+    allowed_metrics_nets: Vec<IpNet>,
 }
 
 impl Default for AppConfig {
@@ -96,12 +102,18 @@ impl Default for AppConfig {
             ignore_ppp_interfaces: true,
             ignore_veth_interfaces: true,
             disabled_datasources: Vec::new(),
+            allowed_metrics_cidrs: vec!["127.0.0.0/8".to_string()],
             disabled_set: HashSet::new(),
+            allowed_metrics_nets: Vec::new(),
         }
     }
 }
 
 impl AppConfig {
+    pub fn is_metrics_ip_allowed(&self, ip: IpAddr) -> bool {
+        self.allowed_metrics_nets.iter().any(|net| net.contains(&ip))
+    }
+
     pub fn is_datasource_enabled(&self, name: &str) -> bool {
         !self.disabled_set.contains(name)
     }
@@ -112,6 +124,19 @@ impl AppConfig {
 
     fn build_disabled_set(&mut self) {
         self.disabled_set = self.disabled_datasources.iter().cloned().collect();
+    }
+
+    fn build_allowed_metrics_nets(&mut self) {
+        let mut nets = Vec::new();
+        for entry in &self.allowed_metrics_cidrs {
+            match IpNet::from_str(entry) {
+                Ok(net) => nets.push(net),
+                Err(err) => {
+                    eprintln!("Invalid allowed_metrics_cidrs entry {entry}: {err}");
+                }
+            }
+        }
+        self.allowed_metrics_nets = nets;
     }
 
     pub fn load() -> Self {
@@ -128,6 +153,7 @@ impl AppConfig {
         };
 
         config.build_disabled_set();
+        config.build_allowed_metrics_nets();
         config.check_subsystems();
         config
     }
@@ -207,5 +233,19 @@ mod tests {
         assert!(!config.is_datasource_enabled("thermal"));
         assert!(!config.is_datasource_enabled("numa"));
         assert!(config.is_datasource_enabled("procfs"));
+    }
+
+    #[test]
+    fn test_allowed_metrics_cidrs_matches_ip() {
+        let mut config = AppConfig {
+            allowed_metrics_cidrs: vec!["10.0.0.0/8".to_string()],
+            ..Default::default()
+        };
+        config.build_allowed_metrics_nets();
+
+        let allowed_ip: IpAddr = "10.1.2.3".parse().unwrap();
+        let denied_ip: IpAddr = "192.168.1.10".parse().unwrap();
+        assert!(config.is_metrics_ip_allowed(allowed_ip));
+        assert!(!config.is_metrics_ip_allowed(denied_ip));
     }
 }

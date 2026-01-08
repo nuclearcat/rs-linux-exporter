@@ -99,6 +99,9 @@ ignore_veth_interfaces = true
 # Disable specific datasources (will not be polled)
 # Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal
 disabled_datasources = ["thermal", "conntrack"]
+
+# Restrict /metrics access to these CIDR ranges
+allowed_metrics_cidrs = ["127.0.0.0/8"]
 ```
 
 ## Contributing

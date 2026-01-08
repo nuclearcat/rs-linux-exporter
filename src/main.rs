@@ -20,7 +20,8 @@ mod runtime;
 use crate::config::AppConfig;
 use prometheus::{Encoder, IntCounter, TextEncoder};
 use rocket::Config;
-use rocket::http::ContentType;
+use rocket::http::{ContentType, Status};
+use rocket::response::status;
 use std::sync::OnceLock;
 
 static METRICS_REQUESTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
@@ -88,7 +89,21 @@ fn update_metrics() {
 }
 
 #[get("/metrics")]
-fn metrics() -> (ContentType, String) {
+fn metrics(
+    request: &rocket::Request<'_>,
+) -> Result<(ContentType, String), status::Custom<(ContentType, String)>> {
+    let config = app_config();
+    let client_ip = request.client_ip();
+    let is_allowed = client_ip
+        .map(|ip| config.is_metrics_ip_allowed(ip))
+        .unwrap_or(false);
+    if !is_allowed {
+        return Err(status::Custom(
+            Status::Forbidden,
+            (ContentType::Plain, "access denied".to_string()),
+        ));
+    }
+
     metrics_requests_total().inc();
     update_metrics();
 
@@ -99,10 +114,10 @@ fn metrics() -> (ContentType, String) {
         .encode(&metric_families, &mut buffer)
         .expect("encode metrics");
 
-    (
+    Ok((
         ContentType::Plain,
         String::from_utf8(buffer).unwrap_or_default(),
-    )
+    ))
 }
 
 #[get("/")]
@@ -130,6 +145,7 @@ mod tests {
     use super::rocket;
     use rocket::http::Status;
     use rocket::local::blocking::Client;
+    use std::net::SocketAddr;
 
     #[test]
     fn index_returns_hint() {
@@ -146,7 +162,10 @@ mod tests {
     #[test]
     fn metrics_endpoint_returns_ok() {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
-        let response = client.get("/metrics").dispatch();
+        let response = client
+            .get("/metrics")
+            .remote(metrics_remote_addr())
+            .dispatch();
 
         assert_eq!(response.status(), Status::Ok);
     }
@@ -154,7 +173,10 @@ mod tests {
     #[test]
     fn metrics_endpoint_exposes_prometheus_text() {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
-        let response = client.get("/metrics").dispatch();
+        let response = client
+            .get("/metrics")
+            .remote(metrics_remote_addr())
+            .dispatch();
 
         let body = response.into_string().unwrap_or_default();
         assert!(body.contains("metrics_requests_total"));
@@ -163,7 +185,10 @@ mod tests {
     #[test]
     fn metrics_endpoint_contains_help_and_type() {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
-        let response = client.get("/metrics").dispatch();
+        let response = client
+            .get("/metrics")
+            .remote(metrics_remote_addr())
+            .dispatch();
 
         let body = response.into_string().unwrap_or_default();
         // Prometheus format requires HELP and TYPE lines
@@ -176,14 +201,20 @@ mod tests {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
 
         // First request
-        let response1 = client.get("/metrics").dispatch();
+        let response1 = client
+            .get("/metrics")
+            .remote(metrics_remote_addr())
+            .dispatch();
         let body1 = response1.into_string().unwrap_or_default();
 
         // Find metrics_requests_total value
         let count1 = extract_counter_value(&body1, "metrics_requests_total");
 
         // Second request
-        let response2 = client.get("/metrics").dispatch();
+        let response2 = client
+            .get("/metrics")
+            .remote(metrics_remote_addr())
+            .dispatch();
         let body2 = response2.into_string().unwrap_or_default();
 
         let count2 = extract_counter_value(&body2, "metrics_requests_total");
@@ -200,7 +231,10 @@ mod tests {
     #[test]
     fn metrics_endpoint_has_correct_content_type() {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
-        let response = client.get("/metrics").dispatch();
+        let response = client
+            .get("/metrics")
+            .remote(metrics_remote_addr())
+            .dispatch();
 
         let content_type = response.content_type();
         assert!(content_type.is_some());
@@ -216,6 +250,22 @@ mod tests {
         let response = client.get("/unknown").dispatch();
 
         assert_eq!(response.status(), Status::NotFound);
+    }
+
+    #[test]
+    fn metrics_endpoint_denies_unlisted_ip() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client
+            .get("/metrics")
+            .remote("10.0.0.1:1234".parse().unwrap())
+            .dispatch();
+
+        assert_eq!(response.status(), Status::Forbidden);
+        assert_eq!(response.into_string().unwrap_or_default(), "access denied");
+    }
+
+    fn metrics_remote_addr() -> SocketAddr {
+        "127.0.0.1:1234".parse().expect("parse remote addr")
     }
 
     /// Helper to extract counter value from Prometheus text format
