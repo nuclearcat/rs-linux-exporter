@@ -12,6 +12,7 @@ mod datasource_thermal;
 mod datasource_rapl;
 mod datasource_power_supply;
 mod datasource_nvme;
+mod datasource_edac;
 mod config;
 mod runtime;
 
@@ -76,8 +77,10 @@ fn update_metrics() {
     if config.is_datasource_enabled("nvme") {
         datasource_nvme::update_metrics();
     }
+    if config.is_datasource_enabled("edac") {
+        datasource_edac::update_metrics();
+    }
     // TODO: Implementation in progress; ethtool netlink stats disabled for now.
-    // TODO: edac - /sys/devices/system/edac/ (memory error detection)
     // TODO: numa - /sys/devices/system/node/ (NUMA node memory stats)
 }
 
