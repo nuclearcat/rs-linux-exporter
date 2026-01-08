@@ -13,6 +13,7 @@ mod datasource_rapl;
 mod datasource_power_supply;
 mod datasource_nvme;
 mod datasource_edac;
+mod datasource_numa;
 mod config;
 mod runtime;
 
@@ -80,8 +81,10 @@ fn update_metrics() {
     if config.is_datasource_enabled("edac") {
         datasource_edac::update_metrics();
     }
+    if config.is_datasource_enabled("numa") {
+        datasource_numa::update_metrics();
+    }
     // TODO: Implementation in progress; ethtool netlink stats disabled for now.
-    // TODO: numa - /sys/devices/system/node/ (NUMA node memory stats)
 }
 
 #[get("/metrics")]

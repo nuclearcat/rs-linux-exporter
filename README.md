@@ -96,6 +96,7 @@ disabled_datasources = ["thermal", "conntrack"]
 | `power_supply` | Battery and AC adapter status |
 | `nvme` | NVMe device information (model, serial, state) |
 | `edac` | Memory error detection (correctable/uncorrectable) |
+| `numa` | NUMA node memory and hit/miss statistics |
 
 ## Contributing
 Please check dependency freshness and binary size when submitting changes.
