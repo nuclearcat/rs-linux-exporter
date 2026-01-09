@@ -1,0 +1,213 @@
+use prometheus::GaugeVec;
+use std::fs;
+use std::path::Path;
+use std::sync::OnceLock;
+
+struct RaplMetrics {
+    energy_joules: GaugeVec,
+    max_energy_joules: GaugeVec,
+}
+
+impl RaplMetrics {
+    fn new() -> Self {
+        Self {
+            energy_joules: prometheus::register_gauge_vec!(
+                "rapl_energy_joules",
+                "Current energy counter in Joules (wraps at max_energy_joules)",
+                &["zone", "name"]
+            )
+            .expect("register rapl_energy_joules"),
+
+            max_energy_joules: prometheus::register_gauge_vec!(
+                "rapl_max_energy_joules",
+                "Maximum energy counter range in Joules before wrap",
+                &["zone", "name"]
+            )
+            .expect("register rapl_max_energy_joules"),
+        }
+    }
+}
+
+static RAPL_METRICS: OnceLock<RaplMetrics> = OnceLock::new();
+
+fn metrics() -> &'static RaplMetrics {
+    RAPL_METRICS.get_or_init(RaplMetrics::new)
+}
+
+fn read_string(path: &Path) -> Option<String> {
+    fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+}
+
+fn read_u64(path: &Path) -> Option<u64> {
+    read_string(path)?.parse::<u64>().ok()
+}
+
+fn update_rapl_zone(zone_path: &Path, zone_id: &str) {
+    let metrics = metrics();
+
+    // Read zone name (e.g., "package-0", "core", "uncore", "dram")
+    let name = read_string(&zone_path.join("name")).unwrap_or_else(|| "unknown".to_string());
+
+    // Read energy counter in microjoules, convert to joules
+    if let Some(energy_uj) = read_u64(&zone_path.join("energy_uj")) {
+        metrics
+            .energy_joules
+            .with_label_values(&[zone_id, &name])
+            .set(energy_uj as f64 / 1_000_000.0);
+    }
+
+    // Read max energy range in microjoules, convert to joules
+    if let Some(max_energy_uj) = read_u64(&zone_path.join("max_energy_range_uj")) {
+        metrics
+            .max_energy_joules
+            .with_label_values(&[zone_id, &name])
+            .set(max_energy_uj as f64 / 1_000_000.0);
+    }
+
+    // Process subzones (e.g., intel-rapl:0:0, intel-rapl:0:1)
+    if let Ok(entries) = fs::read_dir(zone_path) {
+        for entry in entries.flatten() {
+            let entry_name = match entry.file_name().into_string() {
+                Ok(name) => name,
+                Err(_) => continue,
+            };
+
+            // Subzones have names like "intel-rapl:0:0" (contain two colons)
+            if entry_name.contains(':')
+                && entry.path().is_dir()
+                && let Some(subzone_name) = read_string(&entry.path().join("name"))
+            {
+                // Read subzone energy
+                if let Some(energy_uj) = read_u64(&entry.path().join("energy_uj")) {
+                    metrics
+                        .energy_joules
+                        .with_label_values(&[&entry_name, &subzone_name])
+                        .set(energy_uj as f64 / 1_000_000.0);
+                }
+
+                // Read subzone max energy range
+                if let Some(max_energy_uj) = read_u64(&entry.path().join("max_energy_range_uj")) {
+                    metrics
+                        .max_energy_joules
+                        .with_label_values(&[&entry_name, &subzone_name])
+                        .set(max_energy_uj as f64 / 1_000_000.0);
+                }
+            }
+        }
+    }
+}
+
+pub fn update_metrics() {
+    let base = Path::new("/sys/class/powercap");
+    let entries = match fs::read_dir(base) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let name = match entry.file_name().into_string() {
+            Ok(name) => name,
+            Err(_) => continue,
+        };
+
+        // Match intel-rapl:N or amd-rapl:N zones (top-level packages)
+        if (name.starts_with("intel-rapl:") || name.starts_with("amd-rapl:"))
+            && name.matches(':').count() == 1
+        {
+            let path = match fs::canonicalize(entry.path()) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            update_rapl_zone(&path, &name);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn create_rapl_zone(
+        dir: &Path,
+        name: &str,
+        zone_name: &str,
+        energy: u64,
+        max_energy: u64,
+    ) -> std::path::PathBuf {
+        let zone_dir = dir.join(name);
+        fs::create_dir_all(&zone_dir).unwrap();
+        fs::write(zone_dir.join("name"), format!("{}\n", zone_name)).unwrap();
+        fs::write(zone_dir.join("energy_uj"), format!("{}\n", energy)).unwrap();
+        fs::write(
+            zone_dir.join("max_energy_range_uj"),
+            format!("{}\n", max_energy),
+        )
+        .unwrap();
+        zone_dir
+    }
+
+    #[test]
+    fn test_read_string_trims_whitespace() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("name");
+        fs::write(&file, "  package-0  \n").unwrap();
+        assert_eq!(read_string(&file), Some("package-0".to_string()));
+    }
+
+    #[test]
+    fn test_read_u64_parses_integer() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("energy_uj");
+        fs::write(&file, "123456789\n").unwrap();
+        assert_eq!(read_u64(&file), Some(123456789));
+    }
+
+    #[test]
+    fn test_read_u64_handles_invalid() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("energy_uj");
+        fs::write(&file, "not_a_number\n").unwrap();
+        assert_eq!(read_u64(&file), None);
+    }
+
+    #[test]
+    fn test_update_rapl_zone_reads_energy() {
+        let dir = TempDir::new().unwrap();
+        let zone = create_rapl_zone(
+            dir.path(),
+            "intel-rapl:0",
+            "package-0",
+            1000000, // 1 Joule in microjoules
+            262143328850,
+        );
+        update_rapl_zone(&zone, "intel-rapl:0");
+    }
+
+    #[test]
+    fn test_update_rapl_zone_with_subzones() {
+        let dir = TempDir::new().unwrap();
+        let zone = create_rapl_zone(
+            dir.path(),
+            "intel-rapl:0",
+            "package-0",
+            1000000,
+            262143328850,
+        );
+        // Create subzone
+        create_rapl_zone(&zone, "intel-rapl:0:0", "core", 500000, 262143328850);
+
+        update_rapl_zone(&zone, "intel-rapl:0");
+    }
+
+    #[test]
+    fn test_update_rapl_zone_missing_name() {
+        let dir = TempDir::new().unwrap();
+        let zone_dir = dir.path().join("intel-rapl:0");
+        fs::create_dir_all(&zone_dir).unwrap();
+        fs::write(zone_dir.join("energy_uj"), "1000000\n").unwrap();
+        // No name file - should use "unknown"
+
+        update_rapl_zone(&zone_dir, "intel-rapl:0");
+    }
+}

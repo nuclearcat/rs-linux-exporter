@@ -1,0 +1,23 @@
+name: build-deb
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro: [ubuntu2204, ubuntu2404, debian13]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deb
+        run: |
+          chmod +x ./make_deb.sh
+          ./make_deb.sh "${{ matrix.distro }}"
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: rs-linux-exporter-${{ matrix.distro }}-deb
+          path: dist/*.deb
+          if-no-files-found: error
