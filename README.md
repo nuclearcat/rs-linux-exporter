@@ -39,6 +39,7 @@ and the software reliable.
 | `edac` | Memory error detection (correctable/uncorrectable) |
 | `numa` | NUMA node memory and hit/miss statistics |
 | `ipmi` | IPMI sensor readings via /dev/ipmi0 |
+| `mdraid` | Linux software RAID (md) array status |
 
 ## Kernel Modules for Hardware Monitoring
 
@@ -99,7 +100,7 @@ ignore_ppp_interfaces = true
 ignore_veth_interfaces = true
 
 # Disable specific datasources (will not be polled)
-# Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal, ipmi
+# Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal, ipmi, mdraid
 disabled_datasources = ["thermal", "conntrack"]
 
 # Restrict /metrics access to these CIDR ranges

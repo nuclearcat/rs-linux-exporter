@@ -66,6 +66,12 @@ const SUBSYSTEM_CHECKS: &[SubsystemCheck] = &[
         description: "IPMI device",
         require_entries: false,
     },
+    SubsystemCheck {
+        name: "mdraid",
+        path: "/proc/mdstat",
+        description: "MD RAID status",
+        require_entries: false,
+    },
 ];
 
 fn check_path_available(path: &Path, require_entries: bool) -> bool {

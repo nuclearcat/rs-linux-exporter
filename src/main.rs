@@ -9,6 +9,7 @@ mod datasource_ethtool;
 mod datasource_filesystems;
 mod datasource_hwmon;
 mod datasource_ipmi;
+mod datasource_mdraid;
 mod datasource_numa;
 mod datasource_nvme;
 mod datasource_power_supply;
@@ -82,6 +83,9 @@ fn update_metrics() {
     }
     if config.is_datasource_enabled("ipmi") {
         datasource_ipmi::update_metrics();
+    }
+    if config.is_datasource_enabled("mdraid") {
+        datasource_mdraid::update_metrics();
     }
     if config.is_datasource_enabled("thermal") {
         datasource_thermal::update_metrics();
