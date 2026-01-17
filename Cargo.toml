@@ -8,7 +8,7 @@ readme = "README.md"
 license = "LGPL-2.1-or-later"
 homepage = "https://github.com/nuclearcat/rs-linux-exporter"
 keywords = ["prometheus", "exporter", "linux", "metrics", "monitoring"]
-categories = ["system"]
+categories = ["command-line-utilities", "network-programming"]
 
 [dependencies]
 prometheus = "0.14"
