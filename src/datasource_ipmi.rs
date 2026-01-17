@@ -1,0 +1,119 @@
+use crate::runtime::debug_enabled;
+use ipmi_rs::sensor_event::{GetSensorReading, ThresholdReading};
+use ipmi_rs::storage::sdr::record::{
+    DataFormat, FullSensorRecord, IdentifiableSensor, InstancedSensor, WithSensorRecordCommon,
+};
+use ipmi_rs::{File, Ipmi};
+use prometheus::GaugeVec;
+use std::sync::OnceLock;
+use std::time::Duration;
+
+const IPMI_DEVICE: &str = "/dev/ipmi0";
+const IPMI_TIMEOUT_MS: u64 = 2000;
+
+struct IpmiMetrics {
+    sensor_reading: GaugeVec,
+}
+
+impl IpmiMetrics {
+    fn new() -> Self {
+        Self {
+            sensor_reading: prometheus::register_gauge_vec!(
+                "ipmi_sensor_reading",
+                "IPMI sensor reading (unit label indicates base units)",
+                &["sensor", "type", "unit"]
+            )
+            .expect("register ipmi_sensor_reading"),
+        }
+    }
+}
+
+static IPMI_METRICS: OnceLock<IpmiMetrics> = OnceLock::new();
+
+fn metrics() -> &'static IpmiMetrics {
+    IPMI_METRICS.get_or_init(IpmiMetrics::new)
+}
+
+fn open_ipmi() -> Option<Ipmi<File>> {
+    let timeout = Duration::from_millis(IPMI_TIMEOUT_MS);
+    match File::new(IPMI_DEVICE, timeout) {
+        Ok(file) => Some(Ipmi::new(file)),
+        Err(err) => {
+            if debug_enabled() {
+                eprintln!("ipmi: failed to open {IPMI_DEVICE}: {err}");
+            }
+            None
+        }
+    }
+}
+
+fn convert_reading(sensor: &FullSensorRecord, reading: u8) -> Option<f64> {
+    let format = sensor.analog_data_format?;
+    let m = sensor.m as f64;
+    let b = (sensor.b as f64) * 10f64.powf(sensor.b_exponent as f64);
+    let result_mul = 10f64.powf(sensor.result_exponent as f64);
+
+    let reading_value = match format {
+        DataFormat::Unsigned => reading as f64,
+        DataFormat::OnesComplement => (!reading as i8) as f64,
+        DataFormat::TwosComplement => (reading as i8) as f64,
+    };
+
+    Some((m * reading_value + b) * result_mul)
+}
+
+fn unit_label(sensor: &FullSensorRecord) -> String {
+    let units = &sensor.common().sensor_units;
+    if units.is_percentage {
+        "percent".to_string()
+    } else {
+        format!("{:?}", units.base_unit)
+    }
+}
+
+pub fn update_metrics() {
+    let mut ipmi = match open_ipmi() {
+        Some(ipmi) => ipmi,
+        None => return,
+    };
+
+    let metrics = metrics();
+
+    let records: Vec<_> = ipmi.sdrs().collect();
+    for record in records {
+        let full = match record.contents {
+            ipmi_rs::storage::sdr::record::RecordContents::FullSensor(full) => full,
+            _ => continue,
+        };
+
+        let raw_reading = match ipmi.send_recv(GetSensorReading::for_sensor_key(full.key_data())) {
+            Ok(reading) => reading,
+            Err(err) => {
+                if debug_enabled() {
+                    eprintln!("ipmi: failed reading {}: {err:?}", full.id_string());
+                }
+                continue;
+            }
+        };
+
+        let threshold: ThresholdReading = (&raw_reading).into();
+        let reading = match threshold.reading {
+            Some(value) => value,
+            None => continue,
+        };
+
+        let value = match convert_reading(&full, reading) {
+            Some(value) => value,
+            None => continue,
+        };
+
+        let sensor_label = full.id_string().to_string();
+        let sensor_type = full.ty().to_string();
+        let unit = unit_label(&full);
+
+        metrics
+            .sensor_reading
+            .with_label_values(&[&sensor_label, &sensor_type, &unit])
+            .set(value);
+    }
+}
