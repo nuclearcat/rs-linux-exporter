@@ -38,10 +38,12 @@ and the software reliable.
 | `nvme` | NVMe device information (model, serial, state) |
 | `edac` | Memory error detection (correctable/uncorrectable) |
 | `numa` | NUMA node memory and hit/miss statistics |
+| `ipmi` | IPMI sensor readings via /dev/ipmi0 |
 
 ## Kernel Modules for Hardware Monitoring
 
 The `hwmon` and `thermal` exporters require appropriate kernel modules to be loaded.
+The `ipmi` exporter requires `/dev/ipmi0`, typically provided by `ipmi_devintf` and `ipmi_si`.
 Use `sensors-detect` from the `lm-sensors` package to identify which modules your
 system needs.
 
@@ -97,7 +99,7 @@ ignore_ppp_interfaces = true
 ignore_veth_interfaces = true
 
 # Disable specific datasources (will not be polled)
-# Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal
+# Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal, ipmi
 disabled_datasources = ["thermal", "conntrack"]
 
 # Restrict /metrics access to these CIDR ranges

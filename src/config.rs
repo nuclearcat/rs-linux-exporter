@@ -60,6 +60,12 @@ const SUBSYSTEM_CHECKS: &[SubsystemCheck] = &[
         description: "NVMe devices",
         require_entries: true,
     },
+    SubsystemCheck {
+        name: "ipmi",
+        path: "/dev/ipmi0",
+        description: "IPMI device",
+        require_entries: false,
+    },
 ];
 
 fn check_path_available(path: &Path, require_entries: bool) -> bool {
