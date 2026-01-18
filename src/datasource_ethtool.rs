@@ -397,7 +397,9 @@ fn get_ethtool_family_id(fd: i32, seq: &mut u32) -> io::Result<u16> {
             eprintln!("ethtool: ctrl attrs {}", summary.join(", "));
         }
         for (attr_type, payload) in attrs {
-            if attr_type == CTRL_ATTR_FAMILY_ID && let Some(id) = parse_u16(payload) {
+            if attr_type == CTRL_ATTR_FAMILY_ID
+                && let Some(id) = parse_u16(payload)
+            {
                 return Ok(id);
             }
         }

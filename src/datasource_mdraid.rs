@@ -92,9 +92,7 @@ fn parse_sync_progress(line: &str) -> Option<(String, f64)> {
     let actions = ["resync", "recovery", "reshape", "check"];
     let action = actions.iter().find(|a| line.contains(*a))?;
 
-    let percent_token = line
-        .split_whitespace()
-        .find(|token| token.ends_with('%'))?;
+    let percent_token = line.split_whitespace().find(|token| token.ends_with('%'))?;
 
     let raw = percent_token.trim_end_matches('%');
     let value = raw.parse::<f64>().ok()?;

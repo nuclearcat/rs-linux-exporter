@@ -10,6 +10,7 @@ mod datasource_filesystems;
 mod datasource_hwmon;
 mod datasource_ipmi;
 mod datasource_mdraid;
+mod datasource_netdev_sysfs;
 mod datasource_numa;
 mod datasource_nvme;
 mod datasource_power_supply;
@@ -101,6 +102,9 @@ fn update_metrics() {
     }
     if config.is_datasource_enabled("edac") {
         datasource_edac::update_metrics();
+    }
+    if config.is_datasource_enabled("netdev_sysfs") {
+        datasource_netdev_sysfs::update_metrics(config);
     }
     if config.is_datasource_enabled("numa") {
         datasource_numa::update_metrics();

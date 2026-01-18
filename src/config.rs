@@ -1,3 +1,4 @@
+use ipnet::IpNet;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
@@ -6,7 +7,6 @@ use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::str::FromStr;
-use ipnet::IpNet;
 
 /// Subsystem availability checks
 struct SubsystemCheck {
@@ -71,6 +71,12 @@ const SUBSYSTEM_CHECKS: &[SubsystemCheck] = &[
         path: "/proc/mdstat",
         description: "MD RAID status",
         require_entries: false,
+    },
+    SubsystemCheck {
+        name: "netdev_sysfs",
+        path: "/sys/class/net",
+        description: "Network interfaces",
+        require_entries: true,
     },
 ];
 
@@ -137,7 +143,9 @@ impl AppConfig {
     }
 
     pub fn is_metrics_ip_allowed(&self, ip: IpAddr) -> bool {
-        self.allowed_metrics_nets.iter().any(|net| net.contains(&ip))
+        self.allowed_metrics_nets
+            .iter()
+            .any(|net| net.contains(&ip))
     }
 
     pub fn is_datasource_enabled(&self, name: &str) -> bool {

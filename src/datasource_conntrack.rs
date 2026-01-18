@@ -191,7 +191,9 @@ fn parse_stats_message(data: &[u8]) -> Result<CpuStats, String> {
         let payload_len = attr_len - mem::size_of::<NlAttr>();
 
         // Stats are 32-bit unsigned integers (big-endian from kernel)
-        if payload_len >= 4 && let Some(name) = attr_type_to_name(attr_type) {
+        if payload_len >= 4
+            && let Some(name) = attr_type_to_name(attr_type)
+        {
             let value_bytes: [u8; 4] = data[payload_offset..payload_offset + 4]
                 .try_into()
                 .unwrap_or([0; 4]);
