@@ -25,6 +25,7 @@ use prometheus::{Encoder, IntCounter, TextEncoder};
 use rocket::Config;
 use rocket::http::{ContentType, Status};
 use rocket::response::status;
+use serde_json::Value as JsonValue;
 use std::net::IpAddr;
 use std::sync::OnceLock;
 
@@ -112,6 +113,103 @@ fn update_metrics() {
     // TODO: Implementation in progress; ethtool netlink stats disabled for now.
 }
 
+fn push_json_sample(
+    samples: &mut Vec<serde_json::Map<String, JsonValue>>,
+    name: &str,
+    labels: &[(String, String)],
+    value: JsonValue,
+) {
+    let mut map = serde_json::Map::new();
+    map.insert("_name_".to_string(), JsonValue::from(name));
+    for (key, value) in labels {
+        map.insert(key.clone(), JsonValue::from(value.clone()));
+    }
+    map.insert("_value_".to_string(), value);
+    samples.push(map);
+}
+
+fn metrics_json_payload() -> String {
+    let families = prometheus::gather();
+    let mut samples: Vec<serde_json::Map<String, JsonValue>> = Vec::new();
+
+    for family in families {
+        let name = family.get_name();
+        let metric_type = family.get_field_type();
+        for metric in family.get_metric() {
+            let base_labels: Vec<(String, String)> = metric
+                .get_label()
+                .iter()
+                .map(|label| (label.get_name().to_string(), label.get_value().to_string()))
+                .collect();
+
+            match metric_type {
+                prometheus::proto::MetricType::COUNTER => {
+                    let value = JsonValue::from(metric.get_counter().get_value());
+                    push_json_sample(&mut samples, name, &base_labels, value);
+                }
+                prometheus::proto::MetricType::GAUGE => {
+                    let value = JsonValue::from(metric.get_gauge().get_value());
+                    push_json_sample(&mut samples, name, &base_labels, value);
+                }
+                prometheus::proto::MetricType::UNTYPED => {
+                    let value = JsonValue::from(metric.get_untyped().get_value());
+                    push_json_sample(&mut samples, name, &base_labels, value);
+                }
+                prometheus::proto::MetricType::HISTOGRAM => {
+                    let histogram = metric.get_histogram();
+                    for bucket in histogram.get_bucket() {
+                        let mut labels = base_labels.clone();
+                        labels.push(("le".to_string(), bucket.get_upper_bound().to_string()));
+                        let value = JsonValue::from(bucket.get_cumulative_count());
+                        let bucket_name = format!("{name}_bucket");
+                        push_json_sample(&mut samples, &bucket_name, &labels, value);
+                    }
+                    let sum_name = format!("{name}_sum");
+                    let count_name = format!("{name}_count");
+                    push_json_sample(
+                        &mut samples,
+                        &sum_name,
+                        &base_labels,
+                        JsonValue::from(histogram.get_sample_sum()),
+                    );
+                    push_json_sample(
+                        &mut samples,
+                        &count_name,
+                        &base_labels,
+                        JsonValue::from(histogram.get_sample_count()),
+                    );
+                }
+                prometheus::proto::MetricType::SUMMARY => {
+                    let summary = metric.get_summary();
+                    for quantile in summary.get_quantile() {
+                        let mut labels = base_labels.clone();
+                        labels.push(("quantile".to_string(), quantile.get_quantile().to_string()));
+                        let value = JsonValue::from(quantile.get_value());
+                        let quantile_name = format!("{name}_quantile");
+                        push_json_sample(&mut samples, &quantile_name, &labels, value);
+                    }
+                    let sum_name = format!("{name}_sum");
+                    let count_name = format!("{name}_count");
+                    push_json_sample(
+                        &mut samples,
+                        &sum_name,
+                        &base_labels,
+                        JsonValue::from(summary.get_sample_sum()),
+                    );
+                    push_json_sample(
+                        &mut samples,
+                        &count_name,
+                        &base_labels,
+                        JsonValue::from(summary.get_sample_count()),
+                    );
+                }
+            }
+        }
+    }
+
+    serde_json::to_string(&samples).unwrap_or_else(|_| "[]".to_string())
+}
+
 #[get("/metrics")]
 fn metrics(
     client_ip: Option<IpAddr>,
@@ -153,6 +251,36 @@ fn metrics(
     ))
 }
 
+#[get("/metrics.json")]
+fn metrics_json(
+    client_ip: Option<IpAddr>,
+) -> Result<(ContentType, String), status::Custom<(ContentType, String)>> {
+    metrics_requests_total().inc();
+    let config = app_config();
+    let is_allowed = client_ip
+        .map(|ip| config.is_metrics_ip_allowed(ip))
+        .unwrap_or(false);
+    if !is_allowed {
+        if config.log_denied_requests {
+            eprintln!(
+                "Denied /metrics.json request from {}",
+                client_ip
+                    .map(|ip| ip.to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string())
+            );
+        }
+        metrics_requests_denied_total().inc();
+        return Err(status::Custom(
+            Status::Forbidden,
+            (ContentType::Plain, "access denied".to_string()),
+        ));
+    }
+
+    update_metrics();
+
+    Ok((ContentType::JSON, metrics_json_payload()))
+}
+
 #[get("/")]
 fn index() -> &'static str {
     "rs-linux-exporter: /metrics"
@@ -192,7 +320,7 @@ fn rocket() -> _ {
         .merge(("address", bind.ip().to_string()))
         .merge(("port", bind.port()));
     rocket::custom(figment)
-        .mount("/", routes![index, metrics])
+        .mount("/", routes![index, metrics, metrics_json])
         .register("/", catchers![not_found])
 }
 

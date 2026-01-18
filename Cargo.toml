@@ -17,6 +17,7 @@ rocket = "0.5.0"
 libc = "0.2"
 toml = "0.9.10"
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 ipnet = "2"
 ipmi-rs = "0.5.0"
 
