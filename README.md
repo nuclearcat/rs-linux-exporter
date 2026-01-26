@@ -114,6 +114,132 @@ log_denied_requests = true
 
 # Log 404 requests
 log_404_requests = false
+
+# TLS certificate and key paths (both required to enable HTTPS)
+# tls_cert = "/etc/rs-linux-exporter/cert.pem"
+# tls_key = "/etc/rs-linux-exporter/key.pem"
+```
+
+## TLS/HTTPS Support
+
+rs-linux-exporter supports optional TLS encryption. To enable HTTPS, add both `tls_cert` and `tls_key` to your config.toml:
+
+```toml
+tls_cert = "/etc/rs-linux-exporter/cert.pem"
+tls_key = "/etc/rs-linux-exporter/key.pem"
+```
+
+Both options must be specified for TLS to be enabled. If only one is provided, the server runs in HTTP mode.
+
+### Self-Signed Certificates (Testing/Internal Use)
+
+For internal networks or testing, generate a self-signed certificate:
+
+```bash
+# Create directory for certificates
+sudo mkdir -p /etc/rs-linux-exporter
+
+# Generate self-signed certificate (valid for 365 days)
+sudo openssl req -x509 -newkey rsa:4096 -nodes \
+    -keyout /etc/rs-linux-exporter/key.pem \
+    -out /etc/rs-linux-exporter/cert.pem \
+    -days 365 \
+    -subj "/CN=$(hostname)"
+
+# Set appropriate permissions
+sudo chmod 600 /etc/rs-linux-exporter/key.pem
+sudo chmod 644 /etc/rs-linux-exporter/cert.pem
+```
+
+For certificates valid for multiple hostnames or IPs:
+
+```bash
+sudo openssl req -x509 -newkey rsa:4096 -nodes \
+    -keyout /etc/rs-linux-exporter/key.pem \
+    -out /etc/rs-linux-exporter/cert.pem \
+    -days 365 \
+    -subj "/CN=$(hostname)" \
+    -addext "subjectAltName=DNS:$(hostname),DNS:localhost,IP:127.0.0.1"
+```
+
+### Let's Encrypt with Certbot
+
+For production environments with a public domain, use Let's Encrypt for free trusted certificates.
+
+#### Install Certbot
+
+```bash
+# Debian/Ubuntu
+sudo apt install certbot
+
+# RHEL/CentOS/Fedora
+sudo dnf install certbot
+
+# Arch Linux
+sudo pacman -S certbot
+```
+
+#### Obtain Certificate
+
+```bash
+# Standalone mode (temporarily binds to port 80)
+sudo certbot certonly --standalone -d metrics.example.com
+
+# Or use webroot if you have a web server
+sudo certbot certonly --webroot -w /var/www/html -d metrics.example.com
+```
+
+#### Configure rs-linux-exporter
+
+Certbot stores certificates in `/etc/letsencrypt/live/<domain>/`. Update config.toml:
+
+```toml
+tls_cert = "/etc/letsencrypt/live/metrics.example.com/fullchain.pem"
+tls_key = "/etc/letsencrypt/live/metrics.example.com/privkey.pem"
+```
+
+Note: The exporter process needs read access to the private key. Either run as root, or adjust permissions:
+
+```bash
+# Option 1: Add exporter user to ssl-cert group (Debian/Ubuntu)
+sudo usermod -aG ssl-cert exporter-user
+
+# Option 2: Use ACLs
+sudo setfacl -m u:exporter-user:r /etc/letsencrypt/live/metrics.example.com/privkey.pem
+sudo setfacl -m u:exporter-user:rx /etc/letsencrypt/live/metrics.example.com/
+sudo setfacl -m u:exporter-user:rx /etc/letsencrypt/archive/metrics.example.com/
+```
+
+#### Auto-Renewal
+
+Certbot sets up automatic renewal. To reload the exporter after renewal, create a deploy hook:
+
+```bash
+sudo tee /etc/letsencrypt/renewal-hooks/deploy/rs-linux-exporter.sh << 'EOF'
+#!/bin/bash
+systemctl restart rs-linux-exporter
+EOF
+sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/rs-linux-exporter.sh
+```
+
+Test renewal with: `sudo certbot renew --dry-run`
+
+### Prometheus Configuration for HTTPS
+
+Update your Prometheus scrape config to use HTTPS:
+
+```yaml
+scrape_configs:
+  - job_name: 'linux-exporter'
+    scheme: https
+    # For self-signed certificates:
+    tls_config:
+      insecure_skip_verify: true
+    # Or with CA verification:
+    # tls_config:
+    #   ca_file: /path/to/ca.pem
+    static_configs:
+      - targets: ['hostname:9100']
 ```
 
 ## Contributing

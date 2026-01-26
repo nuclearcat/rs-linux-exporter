@@ -22,6 +22,7 @@ mod runtime;
 
 use crate::config::AppConfig;
 use prometheus::{Encoder, IntCounter, TextEncoder};
+use rocket::config::TlsConfig;
 use rocket::Config;
 use rocket::http::{ContentType, Status};
 use rocket::response::status;
@@ -133,34 +134,33 @@ fn metrics_json_payload() -> String {
     let mut samples: Vec<serde_json::Map<String, JsonValue>> = Vec::new();
 
     for family in families {
-        let name = family.get_name();
+        let name = family.name();
         let metric_type = family.get_field_type();
         for metric in family.get_metric() {
             let base_labels: Vec<(String, String)> = metric
                 .get_label()
                 .iter()
-                .map(|label| (label.get_name().to_string(), label.get_value().to_string()))
+                .map(|label| (label.name().to_string(), label.value().to_string()))
                 .collect();
 
             match metric_type {
                 prometheus::proto::MetricType::COUNTER => {
-                    let value = JsonValue::from(metric.get_counter().get_value());
+                    let value = JsonValue::from(metric.get_counter().value());
                     push_json_sample(&mut samples, name, &base_labels, value);
                 }
                 prometheus::proto::MetricType::GAUGE => {
-                    let value = JsonValue::from(metric.get_gauge().get_value());
+                    let value = JsonValue::from(metric.get_gauge().value());
                     push_json_sample(&mut samples, name, &base_labels, value);
                 }
                 prometheus::proto::MetricType::UNTYPED => {
-                    let value = JsonValue::from(metric.get_untyped().get_value());
-                    push_json_sample(&mut samples, name, &base_labels, value);
+                    // UNTYPED metrics are not directly supported, skip
                 }
                 prometheus::proto::MetricType::HISTOGRAM => {
                     let histogram = metric.get_histogram();
                     for bucket in histogram.get_bucket() {
                         let mut labels = base_labels.clone();
-                        labels.push(("le".to_string(), bucket.get_upper_bound().to_string()));
-                        let value = JsonValue::from(bucket.get_cumulative_count());
+                        labels.push(("le".to_string(), bucket.upper_bound().to_string()));
+                        let value = JsonValue::from(bucket.cumulative_count());
                         let bucket_name = format!("{name}_bucket");
                         push_json_sample(&mut samples, &bucket_name, &labels, value);
                     }
@@ -170,21 +170,21 @@ fn metrics_json_payload() -> String {
                         &mut samples,
                         &sum_name,
                         &base_labels,
-                        JsonValue::from(histogram.get_sample_sum()),
+                        JsonValue::from(histogram.sample_sum()),
                     );
                     push_json_sample(
                         &mut samples,
                         &count_name,
                         &base_labels,
-                        JsonValue::from(histogram.get_sample_count()),
+                        JsonValue::from(histogram.sample_count()),
                     );
                 }
                 prometheus::proto::MetricType::SUMMARY => {
                     let summary = metric.get_summary();
                     for quantile in summary.get_quantile() {
                         let mut labels = base_labels.clone();
-                        labels.push(("quantile".to_string(), quantile.get_quantile().to_string()));
-                        let value = JsonValue::from(quantile.get_value());
+                        labels.push(("quantile".to_string(), quantile.quantile().to_string()));
+                        let value = JsonValue::from(quantile.value());
                         let quantile_name = format!("{name}_quantile");
                         push_json_sample(&mut samples, &quantile_name, &labels, value);
                     }
@@ -194,13 +194,13 @@ fn metrics_json_payload() -> String {
                         &mut samples,
                         &sum_name,
                         &base_labels,
-                        JsonValue::from(summary.get_sample_sum()),
+                        JsonValue::from(summary.sample_sum()),
                     );
                     push_json_sample(
                         &mut samples,
                         &count_name,
                         &base_labels,
-                        JsonValue::from(summary.get_sample_count()),
+                        JsonValue::from(summary.sample_count()),
                     );
                 }
             }
@@ -316,9 +316,15 @@ fn rocket() -> _ {
         eprintln!("\x1b[31mNon-root: ethtool stats collection disabled.\x1b[0m");
     }
     let bind = app_config().bind_addr();
-    let figment = Config::figment()
+    let mut figment = Config::figment()
         .merge(("address", bind.ip().to_string()))
         .merge(("port", bind.port()));
+
+    if let Some((cert, key)) = app_config().tls_config() {
+        figment = figment.merge(("tls", TlsConfig::from_paths(cert, key)));
+        eprintln!("TLS enabled with cert: {cert}");
+    }
+
     rocket::custom(figment)
         .mount("/", routes![index, metrics, metrics_json])
         .register("/", catchers![not_found])

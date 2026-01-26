@@ -1,6 +1,6 @@
 [package]
 name = "rs-linux-exporter"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Linux monitoring exporter"
 repository = "https://github.com/nuclearcat/rs-linux-exporter"
@@ -13,7 +13,7 @@ categories = ["command-line-utilities", "network-programming"]
 [dependencies]
 prometheus = "0.14"
 procfs = "0.18"
-rocket = "0.5.0"
+rocket = { version = "0.5.0", features = ["tls"] }
 libc = "0.2"
 toml = "0.9.10"
 serde = { version = "1.0.228", features = ["derive"] }

@@ -111,6 +111,8 @@ pub struct AppConfig {
     pub bind: String,
     pub log_denied_requests: bool,
     pub log_404_requests: bool,
+    pub tls_cert: Option<String>,
+    pub tls_key: Option<String>,
     #[serde(skip)]
     disabled_set: HashSet<String>,
     #[serde(skip)]
@@ -128,6 +130,8 @@ impl Default for AppConfig {
             bind: "127.0.0.1:9100".to_string(),
             log_denied_requests: true,
             log_404_requests: false,
+            tls_cert: None,
+            tls_key: None,
             disabled_set: HashSet::new(),
             allowed_metrics_nets: Vec::new(),
         }
@@ -140,6 +144,13 @@ impl AppConfig {
             eprintln!("Invalid bind address '{}': {err}", self.bind);
             "127.0.0.1:9100".parse().expect("default bind")
         })
+    }
+
+    pub fn tls_config(&self) -> Option<(&str, &str)> {
+        match (&self.tls_cert, &self.tls_key) {
+            (Some(cert), Some(key)) => Some((cert, key)),
+            _ => None,
+        }
     }
 
     pub fn is_metrics_ip_allowed(&self, ip: IpAddr) -> bool {
