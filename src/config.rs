@@ -113,6 +113,7 @@ pub struct AppConfig {
     pub log_404_requests: bool,
     pub tls_cert: Option<String>,
     pub tls_key: Option<String>,
+    pub auth_token: Option<String>,
     #[serde(skip)]
     disabled_set: HashSet<String>,
     #[serde(skip)]
@@ -132,6 +133,7 @@ impl Default for AppConfig {
             log_404_requests: false,
             tls_cert: None,
             tls_key: None,
+            auth_token: None,
             disabled_set: HashSet::new(),
             allowed_metrics_nets: Vec::new(),
         }
@@ -150,6 +152,13 @@ impl AppConfig {
         match (&self.tls_cert, &self.tls_key) {
             (Some(cert), Some(key)) => Some((cert, key)),
             _ => None,
+        }
+    }
+
+    pub fn is_token_valid(&self, token: Option<&str>) -> bool {
+        match &self.auth_token {
+            Some(expected) => token == Some(expected.as_str()),
+            None => true, // No token configured, allow all
         }
     }
 
@@ -292,5 +301,27 @@ mod tests {
         let denied_ip: IpAddr = "192.168.1.10".parse().unwrap();
         assert!(config.is_metrics_ip_allowed(allowed_ip));
         assert!(!config.is_metrics_ip_allowed(denied_ip));
+    }
+
+    #[test]
+    fn test_token_validation_no_token_configured() {
+        let config = AppConfig::default();
+        // When no token is configured, all requests should be allowed
+        assert!(config.is_token_valid(None));
+        assert!(config.is_token_valid(Some("any-token")));
+    }
+
+    #[test]
+    fn test_token_validation_with_token_configured() {
+        let config = AppConfig {
+            auth_token: Some("secret-token".to_string()),
+            ..Default::default()
+        };
+        // Correct token should be allowed
+        assert!(config.is_token_valid(Some("secret-token")));
+        // Wrong token should be denied
+        assert!(!config.is_token_valid(Some("wrong-token")));
+        // No token should be denied
+        assert!(!config.is_token_valid(None));
     }
 }

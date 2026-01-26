@@ -25,9 +25,27 @@ use prometheus::{Encoder, IntCounter, TextEncoder};
 use rocket::config::TlsConfig;
 use rocket::Config;
 use rocket::http::{ContentType, Status};
+use rocket::request::{FromRequest, Outcome, Request};
 use rocket::response::status;
 use serde_json::Value as JsonValue;
 use std::net::IpAddr;
+
+/// Extracts Bearer token from Authorization header
+pub struct BearerToken(Option<String>);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for BearerToken {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let token = request
+            .headers()
+            .get_one("Authorization")
+            .and_then(|header| header.strip_prefix("Bearer "))
+            .map(|t| t.to_string());
+        Outcome::Success(BearerToken(token))
+    }
+}
 use std::sync::OnceLock;
 
 static METRICS_REQUESTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
@@ -213,14 +231,33 @@ fn metrics_json_payload() -> String {
 #[get("/metrics")]
 fn metrics(
     client_ip: Option<IpAddr>,
+    token: BearerToken,
 ) -> Result<(ContentType, String), status::Custom<(ContentType, String)>> {
     metrics_requests_total().inc();
     let config = app_config();
+
+    // Check token authentication first
+    if !config.is_token_valid(token.0.as_deref()) {
+        if config.log_denied_requests {
+            eprintln!(
+                "Denied /metrics request from {} (invalid token)",
+                client_ip
+                    .map(|ip| ip.to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string())
+            );
+        }
+        metrics_requests_denied_total().inc();
+        return Err(status::Custom(
+            Status::Unauthorized,
+            (ContentType::Plain, "unauthorized".to_string()),
+        ));
+    }
+
+    // Check IP allowlist
     let is_allowed = client_ip
         .map(|ip| config.is_metrics_ip_allowed(ip))
         .unwrap_or(false);
     if !is_allowed {
-        // Only /metrics requests are logged here.
         if config.log_denied_requests {
             eprintln!(
                 "Denied /metrics request from {}",
@@ -254,9 +291,29 @@ fn metrics(
 #[get("/metrics.json")]
 fn metrics_json(
     client_ip: Option<IpAddr>,
+    token: BearerToken,
 ) -> Result<(ContentType, String), status::Custom<(ContentType, String)>> {
     metrics_requests_total().inc();
     let config = app_config();
+
+    // Check token authentication first
+    if !config.is_token_valid(token.0.as_deref()) {
+        if config.log_denied_requests {
+            eprintln!(
+                "Denied /metrics.json request from {} (invalid token)",
+                client_ip
+                    .map(|ip| ip.to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string())
+            );
+        }
+        metrics_requests_denied_total().inc();
+        return Err(status::Custom(
+            Status::Unauthorized,
+            (ContentType::Plain, "unauthorized".to_string()),
+        ));
+    }
+
+    // Check IP allowlist
     let is_allowed = client_ip
         .map(|ip| config.is_metrics_ip_allowed(ip))
         .unwrap_or(false);

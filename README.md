@@ -118,6 +118,109 @@ log_404_requests = false
 # TLS certificate and key paths (both required to enable HTTPS)
 # tls_cert = "/etc/rs-linux-exporter/cert.pem"
 # tls_key = "/etc/rs-linux-exporter/key.pem"
+
+# Bearer token for authentication (optional)
+# auth_token = "your-secret-token-here"
+```
+
+## Token Authentication
+
+rs-linux-exporter supports optional Bearer token authentication. When configured, all requests to `/metrics` and `/metrics.json` must include a valid `Authorization` header.
+
+### Configuration
+
+Add the `auth_token` option to your config.toml:
+
+```toml
+auth_token = "your-secret-token-here"
+```
+
+When `auth_token` is set, requests without a valid token receive HTTP 401 Unauthorized. When not set, token authentication is disabled.
+
+### Generating a Secure Token
+
+Generate a cryptographically secure random token:
+
+```bash
+# Using openssl (recommended)
+openssl rand -base64 32
+
+# Using /dev/urandom
+head -c 32 /dev/urandom | base64
+
+# Example output: K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72ol/pe/Unols=
+```
+
+### Testing with curl
+
+```bash
+# With token authentication
+curl -H "Authorization: Bearer your-secret-token-here" http://localhost:9100/metrics
+
+# Without token (will fail with 401 if auth_token is configured)
+curl http://localhost:9100/metrics
+```
+
+### Prometheus Configuration
+
+Configure Prometheus to send the Bearer token:
+
+```yaml
+scrape_configs:
+  - job_name: 'linux-exporter'
+    authorization:
+      type: Bearer
+      credentials: your-secret-token-here
+    static_configs:
+      - targets: ['hostname:9100']
+```
+
+Or use a credentials file for better security:
+
+```yaml
+scrape_configs:
+  - job_name: 'linux-exporter'
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/exporter-token.txt
+    static_configs:
+      - targets: ['hostname:9100']
+```
+
+Create the credentials file:
+
+```bash
+echo -n "your-secret-token-here" | sudo tee /etc/prometheus/exporter-token.txt
+sudo chmod 600 /etc/prometheus/exporter-token.txt
+sudo chown prometheus:prometheus /etc/prometheus/exporter-token.txt
+```
+
+### Combined with TLS
+
+For production environments, combine token authentication with TLS for encrypted transport:
+
+```toml
+tls_cert = "/etc/rs-linux-exporter/cert.pem"
+tls_key = "/etc/rs-linux-exporter/key.pem"
+auth_token = "your-secret-token-here"
+```
+
+Prometheus config for HTTPS with token auth:
+
+```yaml
+scrape_configs:
+  - job_name: 'linux-exporter'
+    scheme: https
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/exporter-token.txt
+    tls_config:
+      # For self-signed certificates:
+      insecure_skip_verify: true
+      # Or with CA verification:
+      # ca_file: /path/to/ca.pem
+    static_configs:
+      - targets: ['hostname:9100']
 ```
 
 ## TLS/HTTPS Support
