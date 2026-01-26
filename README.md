@@ -103,8 +103,8 @@ ignore_veth_interfaces = true
 # Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal, ipmi, mdraid
 disabled_datasources = ["thermal", "conntrack"]
 
-# Restrict /metrics access to these CIDR ranges
-allowed_metrics_cidrs = ["127.0.0.0/8"]
+# Restrict /metrics access to these IPs/CIDRs (supports single IPs and CIDR notation)
+allowed_ip = ["127.0.0.0/8", "10.0.0.0/8", "192.168.1.100"]
 
 # Bind address for the HTTP server
 bind = "127.0.0.1:9100"

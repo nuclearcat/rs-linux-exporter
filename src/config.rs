@@ -107,7 +107,7 @@ pub struct AppConfig {
     pub ignore_veth_interfaces: bool,
     #[serde(default)]
     pub disabled_datasources: Vec<String>,
-    pub allowed_metrics_cidrs: Vec<String>,
+    pub allowed_ip: Vec<String>,
     pub bind: String,
     pub log_denied_requests: bool,
     pub log_404_requests: bool,
@@ -127,7 +127,7 @@ impl Default for AppConfig {
             ignore_ppp_interfaces: true,
             ignore_veth_interfaces: true,
             disabled_datasources: Vec::new(),
-            allowed_metrics_cidrs: vec!["127.0.0.0/8".to_string()],
+            allowed_ip: vec!["127.0.0.0/8".to_string()],
             bind: "127.0.0.1:9100".to_string(),
             log_denied_requests: true,
             log_404_requests: false,
@@ -182,12 +182,15 @@ impl AppConfig {
 
     fn build_allowed_metrics_nets(&mut self) {
         let mut nets = Vec::new();
-        for entry in &self.allowed_metrics_cidrs {
-            match IpNet::from_str(entry) {
-                Ok(net) => nets.push(net),
-                Err(err) => {
-                    eprintln!("Invalid allowed_metrics_cidrs entry {entry}: {err}");
-                }
+        for entry in &self.allowed_ip {
+            // Try parsing as CIDR first, then as single IP
+            if let Ok(net) = IpNet::from_str(entry) {
+                nets.push(net);
+            } else if let Ok(ip) = entry.parse::<IpAddr>() {
+                // Single IP without prefix - convert to /32 (IPv4) or /128 (IPv6)
+                nets.push(IpNet::from(ip));
+            } else {
+                eprintln!("Invalid allowed_ip entry {entry}: not a valid IP or CIDR");
             }
         }
         self.allowed_metrics_nets = nets;
@@ -290,9 +293,9 @@ mod tests {
     }
 
     #[test]
-    fn test_allowed_metrics_cidrs_matches_ip() {
+    fn test_allowed_ip_matches_ip() {
         let mut config = AppConfig {
-            allowed_metrics_cidrs: vec!["10.0.0.0/8".to_string()],
+            allowed_ip: vec!["10.0.0.0/8".to_string()],
             ..Default::default()
         };
         config.build_allowed_metrics_nets();
