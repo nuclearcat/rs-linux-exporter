@@ -2,10 +2,14 @@ name: build-deb
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       matrix:
         distro: [ubuntu2204, ubuntu2404, debian13]
@@ -21,3 +25,8 @@ jobs:
           name: rs-linux-exporter-${{ matrix.distro }}-deb
           path: dist/*.deb
           if-no-files-found: error
+      - name: Upload release assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.deb
