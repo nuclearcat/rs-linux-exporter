@@ -1,0 +1,190 @@
+use crate::config::AppConfig;
+use prometheus::GaugeVec;
+use std::fs;
+use std::path::Path;
+use std::sync::OnceLock;
+
+const SYS_CLASS_NET: &str = "/sys/class/net";
+const OPERSTATES: [&str; 7] = [
+    "unknown",
+    "notpresent",
+    "down",
+    "lowerlayerdown",
+    "testing",
+    "dormant",
+    "up",
+];
+const DUPLEX_STATES: [&str; 3] = ["unknown", "half", "full"];
+const AUTONEG_STATES: [&str; 3] = ["unknown", "off", "on"];
+
+struct NetdevSysfsMetrics {
+    operstate: GaugeVec,
+    carrier: GaugeVec,
+    carrier_changes: GaugeVec,
+    dormant: GaugeVec,
+    speed_mbps: GaugeVec,
+    duplex: GaugeVec,
+    autoneg: GaugeVec,
+}
+
+impl NetdevSysfsMetrics {
+    fn new() -> Self {
+        Self {
+            operstate: prometheus::register_gauge_vec!(
+                "netdev_operstate",
+                "Network interface operational state (1 for current state)",
+                &["interface", "state"]
+            )
+            .expect("register netdev_operstate"),
+            carrier: prometheus::register_gauge_vec!(
+                "netdev_carrier",
+                "Network interface carrier status (1 = link detected)",
+                &["interface"]
+            )
+            .expect("register netdev_carrier"),
+            carrier_changes: prometheus::register_gauge_vec!(
+                "netdev_carrier_changes",
+                "Network interface carrier change count",
+                &["interface"]
+            )
+            .expect("register netdev_carrier_changes"),
+            dormant: prometheus::register_gauge_vec!(
+                "netdev_dormant",
+                "Network interface dormant flag (1 = dormant)",
+                &["interface"]
+            )
+            .expect("register netdev_dormant"),
+            speed_mbps: prometheus::register_gauge_vec!(
+                "netdev_speed_mbps",
+                "Network interface speed in Mbps",
+                &["interface"]
+            )
+            .expect("register netdev_speed_mbps"),
+            duplex: prometheus::register_gauge_vec!(
+                "netdev_duplex",
+                "Network interface duplex (1 for current duplex)",
+                &["interface", "duplex"]
+            )
+            .expect("register netdev_duplex"),
+            autoneg: prometheus::register_gauge_vec!(
+                "netdev_autoneg",
+                "Network interface autonegotiation (1 for current state)",
+                &["interface", "state"]
+            )
+            .expect("register netdev_autoneg"),
+        }
+    }
+}
+
+static NETDEV_SYSFS_METRICS: OnceLock<NetdevSysfsMetrics> = OnceLock::new();
+
+fn metrics() -> &'static NetdevSysfsMetrics {
+    NETDEV_SYSFS_METRICS.get_or_init(NetdevSysfsMetrics::new)
+}
+
+fn read_string(path: &Path) -> Option<String> {
+    fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+}
+
+fn read_i64(path: &Path) -> Option<i64> {
+    read_string(path)?.parse::<i64>().ok()
+}
+
+fn normalized_state<'a>(value: &'a str, known: &[&'a str]) -> &'a str {
+    if known.iter().any(|state| *state == value) {
+        value
+    } else {
+        "unknown"
+    }
+}
+
+fn set_state_metric(metric: &GaugeVec, iface: &str, value: &str, known: &[&str]) {
+    let state = normalized_state(value, known);
+    for known_state in known {
+        metric
+            .with_label_values(&[iface, known_state])
+            .set(if state == *known_state { 1.0 } else { 0.0 });
+    }
+}
+
+fn should_skip_interface(name: &str, config: &AppConfig) -> bool {
+    if config.ignore_ppp_interfaces && name.starts_with("ppp") {
+        return true;
+    }
+    if config.ignore_veth_interfaces && (name.starts_with("veth") || name.starts_with("br-")) {
+        return true;
+    }
+    false
+}
+
+fn update_interface(metrics: &NetdevSysfsMetrics, iface_path: &Path, iface: &str) {
+    if let Some(state) =
+        read_string(&iface_path.join("operstate")).map(|value| value.to_lowercase())
+    {
+        set_state_metric(&metrics.operstate, iface, &state, &OPERSTATES);
+    }
+
+    if let Some(carrier) = read_i64(&iface_path.join("carrier")) {
+        if carrier >= 0 {
+            metrics
+                .carrier
+                .with_label_values(&[iface])
+                .set(carrier as f64);
+        }
+    }
+
+    if let Some(changes) = read_i64(&iface_path.join("carrier_changes")) {
+        if changes >= 0 {
+            metrics
+                .carrier_changes
+                .with_label_values(&[iface])
+                .set(changes as f64);
+        }
+    }
+
+    if let Some(dormant) = read_i64(&iface_path.join("dormant")) {
+        if dormant >= 0 {
+            metrics
+                .dormant
+                .with_label_values(&[iface])
+                .set(dormant as f64);
+        }
+    }
+
+    if let Some(speed) = read_i64(&iface_path.join("speed")) {
+        if speed >= 0 {
+            metrics
+                .speed_mbps
+                .with_label_values(&[iface])
+                .set(speed as f64);
+        }
+    }
+
+    if let Some(duplex) = read_string(&iface_path.join("duplex")).map(|value| value.to_lowercase())
+    {
+        set_state_metric(&metrics.duplex, iface, &duplex, &DUPLEX_STATES);
+    }
+
+    if let Some(autoneg) =
+        read_string(&iface_path.join("autoneg")).map(|value| value.to_lowercase())
+    {
+        set_state_metric(&metrics.autoneg, iface, &autoneg, &AUTONEG_STATES);
+    }
+}
+
+pub fn update_metrics(config: &AppConfig) {
+    let entries = match fs::read_dir(SYS_CLASS_NET) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    let metrics = metrics();
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if should_skip_interface(&name, config) {
+            continue;
+        }
+        update_interface(metrics, &entry.path(), &name);
+    }
+}
