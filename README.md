@@ -40,6 +40,7 @@ and the software reliable.
 | `numa` | NUMA node memory and hit/miss statistics |
 | `ipmi` | IPMI sensor readings via /dev/ipmi0 |
 | `mdraid` | Linux software RAID (md) array status |
+| `netdev_sysfs` | Network interface link state, speed, and duplex from sysfs |
 
 ## Kernel Modules for Hardware Monitoring
 
@@ -86,6 +87,26 @@ See [lm_sensors ArchWiki](https://wiki.archlinux.org/title/Lm_sensors) for detai
 ## Configuration
 
 Configuration is optional. Create a `config.toml` file in the working directory.
+
+## Debian/Ubuntu Packages
+
+The `.deb` packages include a systemd unit and a default config file.
+
+Targets: Debian 12/13 and Ubuntu 22.04/24.04.
+
+Defaults when installed from `.deb`:
+- Service name: `rs-linux-exporter.service`
+- Auto-enabled on install
+- Config path: `/etc/rs-linux-exporter/config.toml`
+- Working directory: `/etc/rs-linux-exporter`
+- Bind address: `127.0.0.1:23311`
+- Allowed clients: `127.0.0.0/8`
+
+To change the bind address or allowed clients, edit `/etc/rs-linux-exporter/config.toml` and restart:
+
+```bash
+sudo systemctl restart rs-linux-exporter
+```
 
 ### Example config.toml
 
