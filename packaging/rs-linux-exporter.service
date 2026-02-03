@@ -1,0 +1,13 @@
+[Unit]
+Description=rs-linux-exporter
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/etc/rs-linux-exporter
+ExecStart=/usr/bin/rs-linux-exporter
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target
