@@ -3,6 +3,8 @@ use procfs::net::{TcpState, UdpState};
 use procfs::prelude::{Current, CurrentSI};
 use procfs::{CpuTime, KernelStats, LoadAverage, Meminfo, Uptime};
 use prometheus::{Gauge, GaugeVec};
+use std::collections::HashMap;
+use std::fs;
 use std::sync::OnceLock;
 
 struct ProcfsMetrics {
@@ -24,6 +26,7 @@ struct ProcfsMetrics {
     udp_sockets: GaugeVec,
     arp_entries: GaugeVec,
     snmp: GaugeVec,
+    netstat: GaugeVec,
 }
 
 impl ProcfsMetrics {
@@ -130,6 +133,12 @@ impl ProcfsMetrics {
                 &["field"]
             )
             .expect("register snmp"),
+            netstat: prometheus::register_gauge_vec!(
+                "netstat",
+                "Extended netstat counters from /proc/net/netstat",
+                &["field"]
+            )
+            .expect("register netstat"),
         }
     }
 }
@@ -589,6 +598,110 @@ fn update_snmp(metrics: &ProcfsMetrics, snmp: &procfs::net::Snmp) {
     set("udp_lite_ignored_multi", snmp.udp_lite_ignored_multi);
 }
 
+fn to_snake_case(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut prev: Option<char> = None;
+
+    while let Some(ch) = chars.next() {
+        if !ch.is_ascii_alphanumeric() {
+            if !out.ends_with('_') {
+                out.push('_');
+            }
+            prev = Some(ch);
+            continue;
+        }
+
+        let next = chars.peek().copied();
+        if let Some(prev_ch) = prev {
+            let prev_is_lower = prev_ch.is_ascii_lowercase();
+            let prev_is_upper = prev_ch.is_ascii_uppercase();
+            let prev_is_digit = prev_ch.is_ascii_digit();
+            let is_upper = ch.is_ascii_uppercase();
+            let is_lower = ch.is_ascii_lowercase();
+            let is_digit = ch.is_ascii_digit();
+
+            if !out.is_empty() {
+                if is_upper
+                    && (prev_is_lower
+                        || prev_is_digit
+                        || (prev_is_upper && next.map(|n| n.is_ascii_lowercase()).unwrap_or(false)))
+                {
+                    if !out.ends_with('_') {
+                        out.push('_');
+                    }
+                } else if is_digit && (prev_is_lower || prev_is_upper) {
+                    if !out.ends_with('_') {
+                        out.push('_');
+                    }
+                } else if is_lower && prev_is_digit {
+                    if !out.ends_with('_') {
+                        out.push('_');
+                    }
+                }
+            }
+        }
+
+        out.push(ch.to_ascii_lowercase());
+        prev = Some(ch);
+    }
+
+    let out = out.trim_matches('_').to_string();
+    if out.is_empty() {
+        "unknown".to_string()
+    } else {
+        out
+    }
+}
+
+fn update_netstat(metrics: &ProcfsMetrics) {
+    let Ok(contents) = fs::read_to_string("/proc/net/netstat") else {
+        return;
+    };
+
+    let mut headers: HashMap<String, Vec<String>> = HashMap::new();
+
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let mut parts = line.split_whitespace();
+        let Some(section_raw) = parts.next() else {
+            continue;
+        };
+        let section = section_raw.trim_end_matches(':').to_string();
+        let rest: Vec<&str> = parts.collect();
+        if rest.is_empty() {
+            continue;
+        }
+
+        let is_values = rest.iter().all(|value| value.parse::<i64>().is_ok());
+        if is_values {
+            let Some(fields) = headers.get(&section) else {
+                continue;
+            };
+            if fields.len() != rest.len() {
+                continue;
+            }
+
+            let section_key = to_snake_case(&section);
+            for (field, value_str) in fields.iter().zip(rest.iter()) {
+                if let Ok(value) = value_str.parse::<i64>() {
+                    let field_key = format!("{}_{}", section_key, to_snake_case(field));
+                    metrics
+                        .netstat
+                        .with_label_values(&[field_key.as_str()])
+                        .set(value as f64);
+                }
+            }
+        } else {
+            headers.insert(section, rest.iter().map(|s| s.to_string()).collect());
+        }
+    }
+}
+
 fn update_loadavg(metrics: &ProcfsMetrics, loadavg: &LoadAverage) {
     metrics
         .load_average
@@ -673,4 +786,6 @@ pub fn update_metrics(config: &AppConfig) {
     if let Ok(snmp) = procfs::net::snmp() {
         update_snmp(metrics, &snmp);
     }
+
+    update_netstat(metrics);
 }
