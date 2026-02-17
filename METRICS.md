@@ -2,6 +2,28 @@
 
 This file lists all metrics currently exported by the service, grouped by collection source.
 
+## Automated parsing contract (important for future edits)
+
+If you add or edit sections for this file, keep these formatting rules or the
+`scripts/generate_metrics_schema.py` parser will miss data:
+
+- Metric groups must remain as `## <Group Name>` sections.
+- Group metric tables must keep the exact table form:
+  - header: `| Metric | Type | Description |`
+  - rows only for real metrics in that group
+  - metric names in backticks (`` `metric_name` ``)
+- Add/maintain labels and fields under `## Metric labels and field catalogs`.
+- Keep a section like:
+  - ``### <metric> label values (`label_name`):`` with a markdown bullet list
+  - ``### <metric> field values ...:`` with a markdown bullet list
+- If a metric uses fixed labels, include ``### <metric> labels: `label1`, `label2`...`` (or
+  equivalent bullet style already used in this file).
+- For `netstat`/`snmp`/`vmstat`/`meminfo` style families, keep field lists
+  complete, and keep `--with-runtime-fields` regeneration if values are host-
+  dependent.
+- Avoid free-form prose inside metric tables and catalog lists unless it is still valid
+  markdown list/table content.
+
 ## Core
 
 | Metric | Type | Description |
@@ -173,6 +195,47 @@ This file lists all metrics currently exported by the service, grouped by collec
 ## TODO (documentation gaps)
 
 - `ethtool_stats`: collection is currently disabled in `update_metrics` (`ethtool` module exists, but is not enabled yet).
+
+## Schema generation for Python tooling
+
+`METRICS.md` now includes enough structured content for tooling to parse. Use:
+
+```bash
+python3 scripts/generate_metrics_schema.py --with-runtime-fields --output METRICS.schema.json --pretty
+```
+
+The command writes a machine-readable `METRICS.schema.json` using current `/proc` field discovery for raw metric families (`vmstat`, `snmp`, `netstat`, `meminfo`, etc.).
+
+Grafana panel generation:
+
+```bash
+python3 scripts/generate_grafana_panel.py --section procfs --datasource DS_PROMETHEUS --instance-var instance
+```
+
+The generator now applies common operational defaults:
+
+- Counter-like metrics (`_total`, known counter families) are converted with `rate(...[5m])` by default.
+- Network counter fields that contain `byte`/`octet` are emitted as `rate(...[5m]) * 8` to produce bits/sec.
+- Use `--disable-auto-rate` to turn this off.
+- Use `--rate-window` to change the default rate interval (for example `--rate-window 1m`).
+- If you want to use a literal datasource UID/name (`VictoriaMetrics`), pass `--datasource-literal`.
+- If you use Grafana datasource variables, keep passing `--datasource DS_...` and set the datasource variable in Grafana.
+
+Run without section/metric flags to get interactive help and examples.
+
+Generate an importable dashboard JSON:
+
+Most used:
+
+```bash
+python3 scripts/generate_grafana_panel.py --all --dashboard --datasource VictoriaMetrics --datasource-literal --instance-var instance --output dashboard.json --pretty
+```
+
+Alternative (datasource variable mode):
+
+```bash
+python3 scripts/generate_grafana_panel.py --all --dashboard --datasource DS_PROMETHEUS --instance-var instance --output dashboard.json --pretty
+```
 
 ## Metric labels and field catalogs
 
