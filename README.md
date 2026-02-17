@@ -114,6 +114,9 @@ sudo systemctl restart rs-linux-exporter
 # Ignore loop devices in filesystem metrics
 ignore_loop_devices = true
 
+# Ignore ramfs mounts in filesystem metrics (set false to include)
+ignore_ramfs_filesystems = true
+
 # Ignore PPP interfaces in network metrics
 ignore_ppp_interfaces = true
 

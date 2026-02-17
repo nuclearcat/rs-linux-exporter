@@ -103,6 +103,7 @@ fn check_subsystem_available(check: &SubsystemCheck) -> bool {
 #[serde(default)]
 pub struct AppConfig {
     pub ignore_loop_devices: bool,
+    pub ignore_ramfs_filesystems: bool,
     pub ignore_ppp_interfaces: bool,
     pub ignore_veth_interfaces: bool,
     #[serde(default)]
@@ -124,6 +125,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             ignore_loop_devices: true,
+            ignore_ramfs_filesystems: true,
             ignore_ppp_interfaces: true,
             ignore_veth_interfaces: true,
             disabled_datasources: Vec::new(),

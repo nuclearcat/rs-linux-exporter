@@ -130,7 +130,9 @@ pub fn update_metrics(config: &AppConfig) {
             mount.fs_spec.as_str(),
             mount.fs_vfstype.as_str(),
         ];
-        if is_pseudo_fs(&mount.fs_vfstype) {
+        if is_pseudo_fs(&mount.fs_vfstype)
+            || (config.ignore_ramfs_filesystems && mount.fs_vfstype == "ramfs")
+        {
             remove_metrics(metrics, &labels);
             continue;
         }
