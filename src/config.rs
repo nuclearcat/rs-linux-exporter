@@ -136,7 +136,7 @@ fn check_subsystem_available(check: &SubsystemCheck) -> bool {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct AppConfig {
     pub ignore_loop_devices: bool,
     pub ignore_ramfs_filesystems: bool,
@@ -193,6 +193,10 @@ impl AppConfig {
         }
     }
 
+    pub fn has_incomplete_tls_config(&self) -> bool {
+        self.tls_cert.is_some() != self.tls_key.is_some()
+    }
+
     pub fn is_token_valid(&self, token: Option<&str>) -> bool {
         match (&self.auth_token, token) {
             (Some(expected), Some(provided)) => {
@@ -242,7 +246,7 @@ impl AppConfig {
         // A config that exists but cannot be used must not be silently replaced
         // by the defaults: that would drop auth_token and the operator's
         // allowed_ip list while the exporter carried on serving metrics.
-        let mut config = match fs::read_to_string(CONFIG_PATH) {
+        let mut config: Self = match fs::read_to_string(CONFIG_PATH) {
             Ok(contents) => match toml::from_str(&contents) {
                 Ok(config) => config,
                 Err(err) => {
@@ -264,6 +268,14 @@ impl AppConfig {
                 std::process::exit(1);
             }
         };
+
+        if config.has_incomplete_tls_config() {
+            eprintln!(
+                "Invalid TLS configuration in {CONFIG_PATH}: both tls_cert and tls_key must be set."
+            );
+            eprintln!("Refusing to start with default settings; fix the config file.");
+            std::process::exit(1);
+        }
 
         config.build_disabled_set();
         config.build_allowed_metrics_nets();
@@ -421,5 +433,23 @@ mod tests {
         assert!(!config.is_token_valid(Some("wrong-token")));
         // No token should be denied
         assert!(!config.is_token_valid(None));
+    }
+
+    #[test]
+    fn test_unknown_config_field_is_rejected() {
+        let res: Result<AppConfig, _> = toml::from_str("allowed_ips = [\"10.0.0.0/8\"]\n");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_incomplete_tls_config_is_detected() {
+        let mut config = AppConfig::default();
+        assert!(!config.has_incomplete_tls_config());
+
+        config.tls_cert = Some("/path/to/cert.pem".to_string());
+        assert!(config.has_incomplete_tls_config());
+
+        config.tls_key = Some("/path/to/key.pem".to_string());
+        assert!(!config.has_incomplete_tls_config());
     }
 }

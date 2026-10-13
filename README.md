@@ -263,7 +263,7 @@ tls_cert = "/etc/rs-linux-exporter/cert.pem"
 tls_key = "/etc/rs-linux-exporter/key.pem"
 ```
 
-Both options must be specified for TLS to be enabled. If only one is provided, the server runs in HTTP mode.
+Both options must be specified for TLS to be enabled. If only one is provided, the exporter refuses to start rather than silently falling back to unencrypted HTTP.
 
 ### Self-Signed Certificates (Testing/Internal Use)
 
