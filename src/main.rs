@@ -35,6 +35,19 @@ use std::sync::Mutex;
 /// Extracts Bearer token from Authorization header
 pub struct BearerToken(Option<String>);
 
+fn extract_bearer_token(header: &str) -> Option<String> {
+    let (scheme, rest) = header.trim().split_once(char::is_whitespace)?;
+    if !scheme.eq_ignore_ascii_case("Bearer") {
+        return None;
+    }
+    let token = rest.trim();
+    if token.is_empty() {
+        None
+    } else {
+        Some(token.to_string())
+    }
+}
+
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for BearerToken {
     type Error = ();
@@ -43,8 +56,7 @@ impl<'r> FromRequest<'r> for BearerToken {
         let token = request
             .headers()
             .get_one("Authorization")
-            .and_then(|header| header.strip_prefix("Bearer "))
-            .map(|t| t.to_string());
+            .and_then(extract_bearer_token);
         Outcome::Success(BearerToken(token))
     }
 }
@@ -184,7 +196,13 @@ fn metrics_json_payload() -> String {
                     let histogram = metric.get_histogram();
                     for bucket in histogram.get_bucket() {
                         let mut labels = base_labels.clone();
-                        labels.push(("le".to_string(), bucket.upper_bound().to_string()));
+                        let bound = bucket.upper_bound();
+                        let le = if bound.is_infinite() && bound.is_sign_positive() {
+                            "+Inf".to_string()
+                        } else {
+                            bound.to_string()
+                        };
+                        labels.push(("le".to_string(), le));
                         let value = JsonValue::from(bucket.cumulative_count());
                         let bucket_name = format!("{name}_bucket");
                         push_json_sample(&mut samples, &bucket_name, &labels, value);
@@ -210,8 +228,7 @@ fn metrics_json_payload() -> String {
                         let mut labels = base_labels.clone();
                         labels.push(("quantile".to_string(), quantile.quantile().to_string()));
                         let value = JsonValue::from(quantile.value());
-                        let quantile_name = format!("{name}_quantile");
-                        push_json_sample(&mut samples, &quantile_name, &labels, value);
+                        push_json_sample(&mut samples, name, &labels, value);
                     }
                     let sum_name = format!("{name}_sum");
                     let count_name = format!("{name}_count");
@@ -547,6 +564,20 @@ mod tests {
 
         assert_eq!(response.status(), Status::Forbidden);
         assert_eq!(response.into_string().unwrap_or_default(), "access denied");
+    }
+
+    #[test]
+    fn extract_bearer_token_handles_case_and_whitespace() {
+        assert_eq!(
+            super::extract_bearer_token("Bearer secret"),
+            Some("secret".to_string())
+        );
+        assert_eq!(
+            super::extract_bearer_token("bearer   secret  "),
+            Some("secret".to_string())
+        );
+        assert_eq!(super::extract_bearer_token("Bearer   "), None);
+        assert_eq!(super::extract_bearer_token("Basic dXNlcjpwYXNz"), None);
     }
 
     fn metrics_remote_addr() -> SocketAddr {
