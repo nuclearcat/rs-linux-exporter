@@ -72,6 +72,200 @@ NETDEV_FIELDS = [
 ]
 
 
+MEMINFO_KEY_MAP = {
+    "MemTotal": "mem_total",
+    "MemFree": "mem_free",
+    "MemAvailable": "mem_available",
+    "Buffers": "buffers",
+    "Cached": "cached",
+    "SwapCached": "swap_cached",
+    "Active": "active",
+    "Inactive": "inactive",
+    "Active(anon)": "active_anon",
+    "Inactive(anon)": "inactive_anon",
+    "Active(file)": "active_file",
+    "Inactive(file)": "inactive_file",
+    "Unevictable": "unevictable",
+    "Mlocked": "mlocked",
+    "HighTotal": "high_total",
+    "HighFree": "high_free",
+    "LowTotal": "low_total",
+    "LowFree": "low_free",
+    "MmapCopy": "mmap_copy",
+    "SwapTotal": "swap_total",
+    "SwapFree": "swap_free",
+    "Dirty": "dirty",
+    "Writeback": "writeback",
+    "AnonPages": "anon_pages",
+    "Mapped": "mapped",
+    "Shmem": "shmem",
+    "Slab": "slab",
+    "SReclaimable": "s_reclaimable",
+    "SUnreclaim": "s_unreclaim",
+    "KernelStack": "kernel_stack",
+    "PageTables": "page_tables",
+    "SecPageTables": "secondary_page_tables",
+    "Quicklists": "quicklists",
+    "NFS_Unstable": "nfs_unstable",
+    "Bounce": "bounce",
+    "WritebackTmp": "writeback_tmp",
+    "CommitLimit": "commit_limit",
+    "Committed_AS": "committed_as",
+    "VmallocTotal": "vmalloc_total",
+    "VmallocUsed": "vmalloc_used",
+    "VmallocChunk": "vmalloc_chunk",
+    "HardwareCorrupted": "hardware_corrupted",
+    "AnonHugePages": "anon_hugepages",
+    "ShmemHugePages": "shmem_hugepages",
+    "ShmemPmdMapped": "shmem_pmd_mapped",
+    "CmaTotal": "cma_total",
+    "CmaFree": "cma_free",
+    "HugePages_Total": "hugepages_total",
+    "HugePages_Free": "hugepages_free",
+    "HugePages_Rsvd": "hugepages_rsvd",
+    "HugePages_Surp": "hugepages_surp",
+    "Hugepagesize": "hugepagesize",
+    "DirectMap4k": "direct_map_4k",
+    "DirectMap4M": "direct_map_4M",
+    "DirectMap2M": "direct_map_2M",
+    "DirectMap1G": "direct_map_1G",
+    "Hugetlb": "hugetlb",
+    "Percpu": "per_cpu",
+    "KReclaimable": "k_reclaimable",
+    "FilePmdMapped": "file_pmd_mapped",
+    "FileHugePages": "file_huge_pages",
+    "Zswap": "z_swap",
+    "Zswapped": "z_swapped",
+}
+
+SNMP_KEY_OVERRIDES = {
+    "udp_rcv_buf_errors": "udp_rcvbuf_errors",
+    "udp_snd_buf_errors": "udp_sndbuf_errors",
+    "udp_lite_rcv_buf_errors": "udp_lite_rcvbuf_errors",
+    "udp_lite_snd_buf_errors": "udp_lite_sndbuf_errors",
+}
+
+SNMP_EXPORTED_FIELDS = {
+    "ip_forwarding",
+    "ip_default_ttl",
+    "ip_in_receives",
+    "ip_in_hdr_errors",
+    "ip_in_addr_errors",
+    "ip_forw_datagrams",
+    "ip_in_unknown_protos",
+    "ip_in_discards",
+    "ip_in_delivers",
+    "ip_out_requests",
+    "ip_out_discards",
+    "ip_out_no_routes",
+    "ip_reasm_timeout",
+    "ip_reasm_reqds",
+    "ip_reasm_oks",
+    "ip_reasm_fails",
+    "ip_frag_oks",
+    "ip_frag_fails",
+    "ip_frag_creates",
+    "icmp_in_msgs",
+    "icmp_in_errors",
+    "icmp_in_csum_errors",
+    "icmp_in_dest_unreachs",
+    "icmp_in_time_excds",
+    "icmp_in_parm_probs",
+    "icmp_in_src_quenchs",
+    "icmp_in_redirects",
+    "icmp_in_echos",
+    "icmp_in_echo_reps",
+    "icmp_in_timestamps",
+    "icmp_in_timestamp_reps",
+    "icmp_in_addr_masks",
+    "icmp_in_addr_mask_reps",
+    "icmp_out_msgs",
+    "icmp_out_errors",
+    "icmp_out_dest_unreachs",
+    "icmp_out_time_excds",
+    "icmp_out_parm_probs",
+    "icmp_out_src_quenchs",
+    "icmp_out_redirects",
+    "icmp_out_echos",
+    "icmp_out_echo_reps",
+    "icmp_out_timestamps",
+    "icmp_out_timestamp_reps",
+    "icmp_out_addr_masks",
+    "icmp_out_addr_mask_reps",
+    "tcp_rto_algorithm",
+    "tcp_rto_min",
+    "tcp_rto_max",
+    "tcp_max_conn",
+    "tcp_active_opens",
+    "tcp_passive_opens",
+    "tcp_attempt_fails",
+    "tcp_estab_resets",
+    "tcp_curr_estab",
+    "tcp_in_segs",
+    "tcp_out_segs",
+    "tcp_retrans_segs",
+    "tcp_in_errs",
+    "tcp_out_rsts",
+    "tcp_in_csum_errors",
+    "udp_in_datagrams",
+    "udp_no_ports",
+    "udp_in_errors",
+    "udp_out_datagrams",
+    "udp_rcvbuf_errors",
+    "udp_sndbuf_errors",
+    "udp_in_csum_errors",
+    "udp_ignored_multi",
+    "udp_lite_in_datagrams",
+    "udp_lite_no_ports",
+    "udp_lite_in_errors",
+    "udp_lite_out_datagrams",
+    "udp_lite_rcvbuf_errors",
+    "udp_lite_sndbuf_errors",
+    "udp_lite_in_csum_errors",
+    "udp_lite_ignored_multi",
+}
+
+
+def _to_snake_case(text: str) -> str:
+    """Convert identifier to snake_case matching `to_snake_case` in `datasource_procfs.rs`."""
+    out: list[str] = []
+    prev: Optional[str] = None
+    length = len(text)
+
+    for idx, ch in enumerate(text):
+        if not (ch.isascii() and ch.isalnum()):
+            if not out or out[-1] != "_":
+                out.append("_")
+            prev = ch
+            continue
+
+        nxt = text[idx + 1] if idx + 1 < length else None
+        if prev is not None and out:
+            prev_is_lower = prev.isascii() and prev.islower()
+            prev_is_upper = prev.isascii() and prev.isupper()
+            prev_is_digit = prev.isascii() and prev.isdigit()
+            is_upper = ch.isisupper() if hasattr(ch, "isisupper") else ch.isupper()
+            is_lower = ch.islower()
+            is_digit = ch.isdigit()
+            next_is_lower = nxt is not None and nxt.isascii() and nxt.islower()
+
+            if is_upper and (prev_is_lower or prev_is_digit or (prev_is_upper and next_is_lower)):
+                if out[-1] != "_":
+                    out.append("_")
+            elif is_digit and (prev_is_lower or prev_is_upper):
+                if out[-1] != "_":
+                    out.append("_")
+            elif is_lower and prev_is_digit:
+                if out[-1] != "_":
+                    out.append("_")
+
+        out.append(ch.lower())
+        prev = ch
+
+    result = "".join(out).strip("_")
+    return result if result else "unknown"
+
+
 def _parse_table_row(line: str) -> Optional[Tuple[str, str, str]]:
     if not line.startswith("|"):
         return None
@@ -130,8 +324,6 @@ def _parse_markdown(path: Path) -> Tuple[OrderedDict[str, List[dict]], Dict[str,
                 current_group = title
                 continue
 
-            if title in groups:
-                pass
             groups.setdefault(title, [])
             current_group = title
             in_labels_section = False
@@ -159,6 +351,18 @@ def _parse_markdown(path: Path) -> Tuple[OrderedDict[str, List[dict]], Dict[str,
                         )
                         metadata.setdefault(name, {"labels": [], "label_values": {}, "fields": []})
                         continue
+                    cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+                    if len(cells) >= 2:
+                        label_row = re.match(r"^`(?P<metric>[^`]+)`\s+labels$", cells[0])
+                        if label_row:
+                            metric_name = _resolve_metric_name(label_row.group("metric"), set(metadata))
+                            row_labels = re.findall(r"`([^`]+)`", cells[1])
+                            if row_labels:
+                                entry = metadata.setdefault(
+                                    metric_name, {"labels": [], "label_values": {}, "fields": []}
+                                )
+                                entry["labels"].extend(row_labels)
+                            continue
                 in_table = False
             continue
 
@@ -174,32 +378,53 @@ def _parse_markdown(path: Path) -> Tuple[OrderedDict[str, List[dict]], Dict[str,
         if direct:
             metric = _resolve_metric_name(direct.group("metric"), set(metadata))
             body = direct.group("body")
-            labels = re.findall(r"`([^`]+)`", body)
+            entry = metadata.setdefault(metric, {"labels": [], "label_values": {}, "fields": []})
+
+            # Extract any parenthesized value examples attached to a label, e.g. `interval` (`1`, `5`, `15`).
+            for match in re.finditer(r"`(?P<label>[^`]+)`\s*\((?P<vals>[^)]*)\)", body):
+                lbl = match.group("label")
+                vals = re.findall(r"`([^`]+)`", match.group("vals"))
+                if vals:
+                    existing_vals = entry.setdefault("label_values", {}).setdefault(lbl, [])
+                    for v in vals:
+                        if v not in existing_vals:
+                            existing_vals.append(v)
+
+            body_without_parens = re.sub(r"\([^)]*\)", "", body)
+            labels = re.findall(r"`([^`]+)`", body_without_parens)
             if labels:
-                metadata.setdefault(metric, {"labels": [], "label_values": {}, "fields": []})["labels"] = labels
+                entry["labels"] = labels
             capture = None
             continue
 
-        list_header = re.match(r"^`(?P<metric>[^`]+)`\s+label values(?:\s*\(`(?P<label>[^`]+)`\))?:$", line.strip())
+        list_header = re.match(
+            r"^`(?P<metric>[^`]+)`\s+(?:label\s+values(?:\s*\((?:`[^`]+`\s+metric\s+)?`(?P<label>[^`]+)`\))?|`(?P<named_label>[^`]+)`\s+values):$",
+            line.strip(),
+        )
         if list_header:
             metric = _resolve_metric_name(list_header.group("metric"), set(metadata))
-            label = list_header.group("label") or "value"
-            metadata.setdefault(metric, {"labels": [], "label_values": {}, "fields": []})
+            label = list_header.group("label") or list_header.group("named_label")
+            entry = metadata.setdefault(metric, {"labels": [], "label_values": {}, "fields": []})
+            if label and label not in entry["labels"]:
+                entry["labels"].append(label)
             capture = {
                 "metric": metric,
-                "kind": "label_values",
+                "kind": "fields" if label == "field" else "label_values",
                 "label": label,
             }
             continue
 
         field_list_header = re.match(
-            r"^`(?P<metric>[^`]+)`\s+field values (?:include|are generated from\s+`/proc`.*):$",
+            r"^`(?P<metric>[^`]+)`\s+field values(?:\s*\(`(?P<label>[^`]+)`\)|\s+include|\s+are generated from\s+`/proc`.*):$",
             line.strip(),
         )
         if field_list_header:
             metric = _resolve_metric_name(field_list_header.group("metric"), set(metadata))
-            metadata.setdefault(metric, {"labels": [], "label_values": {}, "fields": []})
-            capture = {"metric": metric, "kind": "fields", "label": None}
+            label = field_list_header.group("label") or "field"
+            entry = metadata.setdefault(metric, {"labels": [], "label_values": {}, "fields": []})
+            if label and label not in entry["labels"]:
+                entry["labels"].append(label)
+            capture = {"metric": metric, "kind": "fields", "label": label}
             continue
 
         if line.strip() and not line.startswith("-") and capture is not None:
@@ -207,24 +432,48 @@ def _parse_markdown(path: Path) -> Tuple[OrderedDict[str, List[dict]], Dict[str,
             capture = None
 
         if capture and line.strip().startswith("-"):
-            value_match = re.findall(r"`([^`]+)`", line)
-            value = value_match[0] if value_match else line.strip("- ").strip()
+            target = metadata.setdefault(capture["metric"], {"labels": [], "label_values": {}, "fields": []})
+            bullet_body = line.strip().lstrip("-").strip()
+
+            # Handle `- `label`: `val1`, `val2`, ...` when no label was fixed in the section header.
+            key_val_match = re.match(r"^`(?P<label>[^`]+)`\s*:\s*(?P<rest>.+)$", bullet_body)
+            if key_val_match and capture["kind"] == "label_values" and not capture["label"]:
+                lbl = key_val_match.group("label")
+                if lbl not in target["labels"]:
+                    target["labels"].append(lbl)
+                rest = key_val_match.group("rest")
+                # Only record explicit value lists (not prose descriptions or open-ended `...` examples).
+                if not re.sub(r"`[^`]*`|[,\s]", "", rest):
+                    vals = re.findall(r"`([^`]+)`", rest)
+                    if vals:
+                        existing = target.setdefault("label_values", {}).setdefault(lbl, [])
+                        for v in vals:
+                            if v not in existing:
+                                existing.append(v)
+                continue
+
+            value_match = re.findall(r"`([^`]+)`", bullet_body)
+            value = value_match[0] if value_match else bullet_body
             if not value:
                 continue
 
-            target = metadata.setdefault(capture["metric"], {"labels": [], "label_values": {}, "fields": []})
             if capture["kind"] == "label_values":
-                values = target.setdefault("label_values", {}).setdefault(capture["label"], [])
+                lbl = capture["label"] or "value"
+                values = target.setdefault("label_values", {}).setdefault(lbl, [])
                 if value not in values:
                     values.append(value)
             else:
                 if value not in target["fields"]:
                     target["fields"].append(value)
+                if capture["metric"] in {"conntrack", "softnet"} and capture["label"]:
+                    values = target.setdefault("label_values", {}).setdefault(capture["label"], [])
+                    if value not in values:
+                        values.append(value)
 
     return groups, metadata
 
 
-def _fields_from_key_value_file(path: str, prefix: str = "") -> list[str]:
+def _fields_from_key_value_file(path: str, prefix: str = "", meminfo_mode: bool = False) -> list[str]:
     try:
         lines = Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
     except FileNotFoundError:
@@ -232,10 +481,20 @@ def _fields_from_key_value_file(path: str, prefix: str = "") -> list[str]:
 
     fields: list[str] = []
     for line in lines:
-        if ":" not in line:
+        stripped = line.strip()
+        if not stripped:
             continue
-        name = line.split(":", 1)[0].strip()
+        if ":" in stripped:
+            name = stripped.split(":", 1)[0].strip()
+        else:
+            parts = stripped.split()
+            name = parts[0] if len(parts) >= 2 else ""
         if not name:
+            continue
+        if meminfo_mode:
+            mapped = MEMINFO_KEY_MAP.get(name)
+            if mapped:
+                fields.append(mapped)
             continue
         key = f"{prefix}_{name.lower()}" if prefix else name.lower()
         fields.append(key)
@@ -261,15 +520,14 @@ def _fields_from_proc_net_pair_file(path: str, prefix_mode: str) -> list[str]:
         labels = rest_a.split()
         if not labels:
             continue
-        if prefix_mode == "netstat":
-            section = section_a.lower()
-            if section.endswith("ext"):
-                section = section[:-3] + "_ext"
-            elif section.startswith("mptcp"):
-                section = "mptcp_ext"
-        else:
-            section = section_a.lower()
-        fields.extend([f"{section}_{name.lower()}" for name in labels])
+        section = _to_snake_case(section_a)
+        for name in labels:
+            key = f"{section}_{_to_snake_case(name)}"
+            if prefix_mode == "snmp":
+                key = SNMP_KEY_OVERRIDES.get(key, key)
+                if key not in SNMP_EXPORTED_FIELDS:
+                    continue
+            fields.append(key)
     return fields
 
 
@@ -278,7 +536,7 @@ def _append_runtime_fields(schema: dict, args: argparse.Namespace) -> None:
         return
 
     runtime_fields = {
-        "meminfo": _fields_from_key_value_file("/proc/meminfo", prefix=""),
+        "meminfo": _fields_from_key_value_file("/proc/meminfo", prefix="", meminfo_mode=True),
         "vmstat": _fields_from_key_value_file("/proc/vmstat", prefix=""),
         "diskstats": DISKSTATS_FIELDS,
         "netdev": NETDEV_FIELDS,
@@ -342,6 +600,7 @@ def generate_schema(markdown_path: Path, args: argparse.Namespace) -> dict:
                 "metrics": [metric["name"] for metric in group_metrics],
             }
             for group_name, group_metrics in groups.items()
+            if group_metrics
         ],
     }
 

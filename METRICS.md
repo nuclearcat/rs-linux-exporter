@@ -930,8 +930,21 @@ Common section prefixes:
 ### Remaining family labels (already fixed)
 
 `cpu_frequency_hz`: `cpu`, `source`
+`cpu_seconds_total`: `cpu`, `mode`
 `load_average`: `interval` (`1`, `5`, `15`)
 `load_processes`: `kind` (`running`, `total`, `latest_pid`)
+`meminfo`: `field`
+`vmstat`: `field`
+`diskstats`: `device`, `field`
+`netdev`: `interface`, `field`
+`tcp_sockets`: `state`
+`udp_sockets`: `state`
+`arp_entries`: `device`
+`snmp`: `field`
+`netstat`: `field`
+`conntrack`: `cpu`, `field`
+`ethtool_stats`: `interface`, `stat`
+`softnet`: `cpu`, `field`
 `netdev_operstate`: `interface`, `state`
 `netdev_carrier`: `interface`
 `netdev_carrier_changes`: `interface`
