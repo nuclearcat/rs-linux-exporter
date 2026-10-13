@@ -802,11 +802,23 @@ pub fn update_metrics(config: &AppConfig) {
         update_netdev(metrics, &devs, config);
     }
 
-    if let Ok(entries) = procfs::net::tcp() {
+    let tcp4 = procfs::net::tcp().ok();
+    let tcp6 = procfs::net::tcp6().ok();
+    if tcp4.is_some() || tcp6.is_some() {
+        let mut entries = tcp4.unwrap_or_default();
+        if let Some(mut v6) = tcp6 {
+            entries.append(&mut v6);
+        }
         update_tcp(metrics, &entries);
     }
 
-    if let Ok(entries) = procfs::net::udp() {
+    let udp4 = procfs::net::udp().ok();
+    let udp6 = procfs::net::udp6().ok();
+    if udp4.is_some() || udp6.is_some() {
+        let mut entries = udp4.unwrap_or_default();
+        if let Some(mut v6) = udp6 {
+            entries.append(&mut v6);
+        }
         update_udp(metrics, &entries);
     }
 
