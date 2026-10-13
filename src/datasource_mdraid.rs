@@ -79,7 +79,7 @@ fn parse_working_token(token: &str) -> Option<(u64, u64)> {
     }
 
     let inner = &token[1..token.len() - 1];
-    if !inner.chars().all(|c| c == 'U' || c == '_') {
+    if inner.is_empty() || !inner.chars().all(|c| c == 'U' || c == '_') {
         return None;
     }
 
@@ -94,7 +94,11 @@ fn parse_sync_progress(line: &str) -> Option<(String, f64)> {
 
     let percent_token = line.split_whitespace().find(|token| token.ends_with('%'))?;
 
-    let raw = percent_token.trim_end_matches('%');
+    let raw = percent_token
+        .trim_end_matches('%')
+        .rsplit('=')
+        .next()?
+        .trim();
     let value = raw.parse::<f64>().ok()?;
     Some(((*action).to_string(), value / 100.0))
 }
@@ -143,7 +147,7 @@ pub fn update_metrics() {
         let mut sync_progress: Option<f64> = None;
 
         while let Some(next_line) = lines.peek() {
-            if next_line.starts_with("md") {
+            if next_line.starts_with("md") || next_line.starts_with("unused devices:") {
                 break;
             }
             let detail = lines.next().unwrap_or_default();
@@ -220,5 +224,32 @@ pub fn update_metrics() {
                 .with_label_values(&[&name, &action])
                 .set(progress);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_sync_progress_handles_spaced_and_unspaced_equals() {
+        let spaced = "      [==>..................]  recovery = 12.5% (1234/9876) finish=1.2min speed=10000K/sec";
+        assert_eq!(
+            parse_sync_progress(spaced),
+            Some(("recovery".to_string(), 0.125))
+        );
+
+        // Kernel prints "=%3u.%u%%", which omits the space at 100.0%.
+        let unspaced = "      [====================>]  resync =100.0% (9876/9876) finish=0.0min speed=10000K/sec";
+        assert_eq!(
+            parse_sync_progress(unspaced),
+            Some(("resync".to_string(), 1.0))
+        );
+    }
+
+    #[test]
+    fn parse_working_token_rejects_empty_brackets() {
+        assert_eq!(parse_working_token("[]"), None);
+        assert_eq!(parse_working_token("[UU_]"), Some((3, 2)));
     }
 }
