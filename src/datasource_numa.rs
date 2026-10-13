@@ -114,6 +114,8 @@ fn update_metrics_from_path(base: &Path) {
     };
 
     let metrics = metrics();
+    metrics.meminfo.reset();
+    metrics.numastat.reset();
     let mut node_count = 0;
 
     for entry in entries.flatten() {
@@ -123,7 +125,10 @@ fn update_metrics_from_path(base: &Path) {
         };
 
         // Match node0, node1, etc.
-        if name.starts_with("node") && name[4..].chars().all(|c| c.is_ascii_digit()) {
+        if let Some(suffix) = name.strip_prefix("node")
+            && !suffix.is_empty()
+            && suffix.chars().all(|c| c.is_ascii_digit())
+        {
             let path = match fs::canonicalize(entry.path()) {
                 Ok(p) => p,
                 Err(_) => continue,

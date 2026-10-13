@@ -67,10 +67,10 @@ pub fn update_metrics() {
             Some(name) => name,
             None => continue,
         };
-        if !name.starts_with("cpu") || name == "cpufreq" || name == "cpuidle" {
+        let Some(suffix) = name.strip_prefix("cpu") else {
             continue;
-        }
-        if !name[3..].chars().all(|ch| ch.is_ascii_digit()) {
+        };
+        if suffix.is_empty() || !suffix.chars().all(|ch| ch.is_ascii_digit()) {
             continue;
         }
 

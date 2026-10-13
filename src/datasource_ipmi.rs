@@ -90,6 +90,7 @@ pub fn update_metrics() {
     };
 
     let metrics = metrics();
+    metrics.sensor_reading.reset();
 
     let records: Vec<_> = ipmi.sdrs().collect();
     for record in records {

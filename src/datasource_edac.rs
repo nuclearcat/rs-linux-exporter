@@ -220,6 +220,12 @@ fn update_metrics_from_path(base: &Path) {
     // would otherwise leave its old counters behind permanently.
     let metrics = metrics();
     metrics.mc_info.reset();
+    metrics.mc_ce_count.reset();
+    metrics.mc_ue_count.reset();
+    metrics.mc_ce_noinfo_count.reset();
+    metrics.mc_ue_noinfo_count.reset();
+    metrics.mc_size_mb.reset();
+    metrics.mc_seconds_since_reset.reset();
     metrics.dimm_ce_count.reset();
     metrics.dimm_ue_count.reset();
     metrics.dimm_size_mb.reset();
@@ -231,7 +237,10 @@ fn update_metrics_from_path(base: &Path) {
         };
 
         // Match mc0, mc1, etc.
-        if name.starts_with("mc") && name[2..].chars().all(|c| c.is_ascii_digit()) {
+        if let Some(suffix) = name.strip_prefix("mc")
+            && !suffix.is_empty()
+            && suffix.chars().all(|c| c.is_ascii_digit())
+        {
             let path = match fs::canonicalize(entry.path()) {
                 Ok(p) => p,
                 Err(_) => continue,
