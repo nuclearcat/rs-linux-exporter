@@ -1,4 +1,5 @@
 use prometheus::GaugeVec;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -81,12 +82,16 @@ fn sensor_index<'a>(file_name: &'a str, prefix: &str) -> Option<&'a str> {
         .filter(|index| !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()))
 }
 
+#[cfg(test)]
 fn update_hwmon_device(hwmon_dir: &Path) {
     let chip_name = match read_string(&hwmon_dir.join("name")) {
         Some(name) => name,
         None => return,
     };
+    update_hwmon_device_with_chip(hwmon_dir, &chip_name);
+}
 
+fn update_hwmon_device_with_chip(hwmon_dir: &Path, chip_name: &str) {
     let entries = match fs::read_dir(hwmon_dir) {
         Ok(entries) => entries,
         Err(_) => return,
@@ -106,7 +111,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
                 let label = get_sensor_label(hwmon_dir, "temp", index);
                 metrics
                     .temperature_celsius
-                    .with_label_values(&[&chip_name, &label])
+                    .with_label_values(&[chip_name, &label])
                     .set(millidegrees as f64 / 1000.0);
             }
         }
@@ -116,7 +121,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
                 let label = get_sensor_label(hwmon_dir, "fan", index);
                 metrics
                     .fan_rpm
-                    .with_label_values(&[&chip_name, &label])
+                    .with_label_values(&[chip_name, &label])
                     .set(rpm as f64);
             }
         }
@@ -126,7 +131,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
                 let label = get_sensor_label(hwmon_dir, "in", index);
                 metrics
                     .voltage_volts
-                    .with_label_values(&[&chip_name, &label])
+                    .with_label_values(&[chip_name, &label])
                     .set(millivolts as f64 / 1000.0);
             }
         }
@@ -136,7 +141,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
                 let label = get_sensor_label(hwmon_dir, "power", index);
                 metrics
                     .power_watts
-                    .with_label_values(&[&chip_name, &label])
+                    .with_label_values(&[chip_name, &label])
                     .set(microwatts as f64 / 1_000_000.0);
             }
         }
@@ -146,7 +151,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
                 let label = get_sensor_label(hwmon_dir, "curr", index);
                 metrics
                     .current_amps
-                    .with_label_values(&[&chip_name, &label])
+                    .with_label_values(&[chip_name, &label])
                     .set(milliamps as f64 / 1000.0);
             }
         }
@@ -157,11 +162,49 @@ pub fn update_metrics() {
     update_metrics_from_path(Path::new("/sys/class/hwmon"));
 }
 
-fn update_metrics_from_path(base: &Path) {
+fn collect_hwmon_devices(base: &Path) -> Vec<(std::path::PathBuf, String)> {
     let entries = match fs::read_dir(base) {
         Ok(entries) => entries,
-        Err(_) => return,
+        Err(_) => return Vec::new(),
     };
+
+    let mut raw_devices = Vec::new();
+    let mut name_counts: HashMap<String, usize> = HashMap::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() || path.is_symlink() {
+            let dir_name = entry.file_name().to_string_lossy().into_owned();
+            // Resolve symlinks to get the actual hwmon directory
+            let resolved = match fs::canonicalize(&path) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            let Some(chip_name) = read_string(&resolved.join("name")) else {
+                continue;
+            };
+            *name_counts.entry(chip_name.clone()).or_insert(0) += 1;
+            raw_devices.push((dir_name, resolved, chip_name));
+        }
+    }
+
+    raw_devices
+        .into_iter()
+        .map(|(dir_name, resolved, chip_name)| {
+            let chip_label = if name_counts.get(&chip_name).copied().unwrap_or(0) > 1 {
+                format!("{chip_name}_{dir_name}")
+            } else {
+                chip_name
+            };
+            (resolved, chip_label)
+        })
+        .collect()
+}
+
+fn update_metrics_from_path(base: &Path) {
+    if !base.exists() {
+        return;
+    }
 
     // Chips and sensors disappear when a module is unloaded or a device is
     // unplugged; rebuild so their readings do not stay frozen.
@@ -172,16 +215,8 @@ fn update_metrics_from_path(base: &Path) {
     metrics.power_watts.reset();
     metrics.current_amps.reset();
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() || path.is_symlink() {
-            // Resolve symlinks to get the actual hwmon directory
-            let resolved = match fs::canonicalize(&path) {
-                Ok(p) => p,
-                Err(_) => continue,
-            };
-            update_hwmon_device(&resolved);
-        }
+    for (resolved, chip_label) in collect_hwmon_devices(base) {
+        update_hwmon_device_with_chip(&resolved, &chip_label);
     }
 }
 
@@ -291,5 +326,20 @@ mod tests {
         let dir = TempDir::new().unwrap();
         // Empty directory - should not panic
         update_metrics_from_path(dir.path());
+    }
+
+    #[test]
+    fn test_update_metrics_from_path_disambiguates_duplicate_chips() {
+        let dir = TempDir::new().unwrap();
+        create_mock_hwmon(dir.path(), "hwmon0", "nvme");
+        create_mock_hwmon(dir.path(), "hwmon1", "nvme");
+        create_mock_hwmon(dir.path(), "hwmon2", "coretemp");
+
+        let mut labels: Vec<String> = collect_hwmon_devices(dir.path())
+            .into_iter()
+            .map(|(_, label)| label)
+            .collect();
+        labels.sort();
+        assert_eq!(labels, vec!["coretemp", "nvme_hwmon0", "nvme_hwmon1"]);
     }
 }
