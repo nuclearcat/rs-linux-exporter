@@ -69,8 +69,16 @@ fn read_string(path: &Path) -> Option<String> {
 }
 
 fn get_sensor_label(hwmon_dir: &Path, sensor_type: &str, index: &str) -> String {
-    let label_path = hwmon_dir.join(format!("{}_{}_label", sensor_type, index));
+    let label_path = hwmon_dir.join(format!("{}{}_label", sensor_type, index));
     read_string(&label_path).unwrap_or_else(|| format!("{}_{}", sensor_type, index))
+}
+
+/// Extracts the numeric index N from a `<prefix>N_input` filename.
+fn sensor_index<'a>(file_name: &'a str, prefix: &str) -> Option<&'a str> {
+    file_name
+        .strip_prefix(prefix)
+        .and_then(|rest| rest.strip_suffix("_input"))
+        .filter(|index| !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()))
 }
 
 fn update_hwmon_device(hwmon_dir: &Path) {
@@ -93,8 +101,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
         };
 
         // Temperature sensors: temp[1-*]_input (millidegrees Celsius)
-        if file_name.starts_with("temp") && file_name.ends_with("_input") {
-            let index = &file_name[4..file_name.len() - 6];
+        if let Some(index) = sensor_index(&file_name, "temp") {
             if let Some(millidegrees) = read_value(&entry.path()) {
                 let label = get_sensor_label(hwmon_dir, "temp", index);
                 metrics
@@ -104,8 +111,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
             }
         }
         // Fan sensors: fan[1-*]_input (RPM)
-        else if file_name.starts_with("fan") && file_name.ends_with("_input") {
-            let index = &file_name[3..file_name.len() - 6];
+        else if let Some(index) = sensor_index(&file_name, "fan") {
             if let Some(rpm) = read_value(&entry.path()) {
                 let label = get_sensor_label(hwmon_dir, "fan", index);
                 metrics
@@ -115,11 +121,8 @@ fn update_hwmon_device(hwmon_dir: &Path) {
             }
         }
         // Voltage sensors: in[0-*]_input (millivolts)
-        else if file_name.starts_with("in") && file_name.ends_with("_input") {
-            let index = &file_name[2..file_name.len() - 6];
-            if index.chars().all(|c| c.is_ascii_digit())
-                && let Some(millivolts) = read_value(&entry.path())
-            {
+        else if let Some(index) = sensor_index(&file_name, "in") {
+            if let Some(millivolts) = read_value(&entry.path()) {
                 let label = get_sensor_label(hwmon_dir, "in", index);
                 metrics
                     .voltage_volts
@@ -128,8 +131,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
             }
         }
         // Power sensors: power[1-*]_input (microwatts)
-        else if file_name.starts_with("power") && file_name.ends_with("_input") {
-            let index = &file_name[5..file_name.len() - 6];
+        else if let Some(index) = sensor_index(&file_name, "power") {
             if let Some(microwatts) = read_value(&entry.path()) {
                 let label = get_sensor_label(hwmon_dir, "power", index);
                 metrics
@@ -139,8 +141,7 @@ fn update_hwmon_device(hwmon_dir: &Path) {
             }
         }
         // Current sensors: curr[1-*]_input (milliamps)
-        else if file_name.starts_with("curr") && file_name.ends_with("_input") {
-            let index = &file_name[4..file_name.len() - 6];
+        else if let Some(index) = sensor_index(&file_name, "curr") {
             if let Some(milliamps) = read_value(&entry.path()) {
                 let label = get_sensor_label(hwmon_dir, "curr", index);
                 metrics
@@ -223,7 +224,7 @@ mod tests {
     #[test]
     fn test_get_sensor_label_with_label_file() {
         let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("temp_1_label"), "Core 0\n").unwrap();
+        fs::write(dir.path().join("temp1_label"), "Core 0\n").unwrap();
         assert_eq!(get_sensor_label(dir.path(), "temp", "1"), "Core 0");
     }
 
@@ -232,6 +233,17 @@ mod tests {
         let dir = TempDir::new().unwrap();
         // No label file exists
         assert_eq!(get_sensor_label(dir.path(), "temp", "1"), "temp_1");
+    }
+
+    #[test]
+    fn test_sensor_index_validates_digits() {
+        assert_eq!(sensor_index("temp1_input", "temp"), Some("1"));
+        assert_eq!(sensor_index("in0_input", "in"), Some("0"));
+        assert_eq!(sensor_index("power12_input", "power"), Some("12"));
+        assert_eq!(sensor_index("temp_input", "temp"), None);
+        assert_eq!(sensor_index("in_input", "in"), None);
+        assert_eq!(sensor_index("power1_average_input", "power"), None);
+        assert_eq!(sensor_index("temp1_label", "temp"), None);
     }
 
     #[test]
