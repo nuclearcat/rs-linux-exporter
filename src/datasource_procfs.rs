@@ -283,11 +283,40 @@ fn update_meminfo(metrics: &ProcfsMetrics, meminfo: &Meminfo) {
     set_meminfo_optional(&metrics.meminfo, "z_swapped", meminfo.z_swapped);
 }
 
+fn parse_cpu_labels_from_stat(stat_contents: &str) -> Vec<String> {
+    stat_contents
+        .lines()
+        .filter_map(|line| {
+            let token = line.split_whitespace().next()?;
+            let suffix = token.strip_prefix("cpu")?;
+            if !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()) {
+                Some(token.to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 fn update_kernel_stats(metrics: &ProcfsMetrics, stats: &KernelStats) {
+    // CPUs can be taken offline, which removes their line from /proc/stat.
+    metrics.cpu_seconds_total.reset();
     set_cpu_time(&metrics.cpu_seconds_total, "total", &stats.total);
+
+    let cpu_labels = fs::read_to_string("/proc/stat")
+        .map(|s| parse_cpu_labels_from_stat(&s))
+        .unwrap_or_default();
+
     for (idx, cpu) in stats.cpu_time.iter().enumerate() {
-        let label = format!("cpu{}", idx);
-        set_cpu_time(&metrics.cpu_seconds_total, &label, cpu);
+        let fallback;
+        let label = match cpu_labels.get(idx) {
+            Some(name) => name.as_str(),
+            None => {
+                fallback = format!("cpu{idx}");
+                fallback.as_str()
+            }
+        };
+        set_cpu_time(&metrics.cpu_seconds_total, label, cpu);
     }
 
     metrics.cpu_context_switches_total.set(stats.ctxt as f64);
@@ -876,5 +905,17 @@ mod tests {
                 "{label} missing from UDP_STATE_LABELS"
             );
         }
+    }
+
+    #[test]
+    fn parse_cpu_labels_preserves_sparse_cpu_ids() {
+        let stat = "\
+cpu  100 0 50 1000 0 0 0 0 0 0
+cpu0 50 0 25 500 0 0 0 0 0 0
+cpu2 50 0 25 500 0 0 0 0 0 0
+intr 1234
+ctxt 5678
+";
+        assert_eq!(parse_cpu_labels_from_stat(stat), vec!["cpu0", "cpu2"]);
     }
 }
