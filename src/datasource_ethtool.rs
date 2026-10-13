@@ -12,6 +12,7 @@ use std::sync::OnceLock;
 const NETLINK_GENERIC: i32 = 16;
 
 const NLM_F_REQUEST: u16 = 0x0001;
+const NLM_F_MULTI: u16 = 0x0002;
 const NLM_F_DUMP: u16 = 0x0300;
 const NLMSG_ERROR: u16 = 2;
 const NLMSG_DONE: u16 = 3;
@@ -286,7 +287,7 @@ fn create_netlink_socket() -> io::Result<i32> {
     }
     let mut addr: libc::sockaddr_nl = unsafe { mem::zeroed() };
     addr.nl_family = libc::AF_NETLINK as u16;
-    addr.nl_pid = unsafe { libc::getpid() as u32 };
+    addr.nl_pid = 0;
     addr.nl_groups = 0;
     let ret = unsafe {
         libc::bind(
@@ -315,12 +316,16 @@ fn recv_messages(fd: i32, seq: u32) -> io::Result<Vec<Vec<u8>>> {
     let mut responses = Vec::new();
     let mut buffer = vec![0u8; 16384];
     loop {
+        let mut addr: libc::sockaddr_nl = unsafe { mem::zeroed() };
+        let mut addr_len = mem::size_of::<libc::sockaddr_nl>() as libc::socklen_t;
         let len = unsafe {
-            libc::recv(
+            libc::recvfrom(
                 fd,
                 buffer.as_mut_ptr() as *mut libc::c_void,
                 buffer.len(),
                 0,
+                &mut addr as *mut libc::sockaddr_nl as *mut libc::sockaddr,
+                &mut addr_len,
             )
         };
         if len < 0 {
@@ -333,8 +338,12 @@ fn recv_messages(fd: i32, seq: u32) -> io::Result<Vec<Vec<u8>>> {
         if len == 0 {
             break;
         }
+        if addr.nl_pid != 0 {
+            continue;
+        }
         let len = len as usize;
         let mut offset = 0;
+        let mut saw_multi = false;
         while offset + mem::size_of::<NlMsgHdr>() <= len {
             let hdr: NlMsgHdr =
                 unsafe { std::ptr::read_unaligned(buffer.as_ptr().add(offset) as *const NlMsgHdr) };
@@ -348,6 +357,9 @@ fn recv_messages(fd: i32, seq: u32) -> io::Result<Vec<Vec<u8>>> {
             if hdr.nlmsg_seq != seq {
                 offset += nlmsg_align(msg_len);
                 continue;
+            }
+            if (hdr.nlmsg_flags & NLM_F_MULTI) != 0 {
+                saw_multi = true;
             }
             if hdr.nlmsg_type == NLMSG_DONE {
                 return Ok(responses);
@@ -371,6 +383,9 @@ fn recv_messages(fd: i32, seq: u32) -> io::Result<Vec<Vec<u8>>> {
                 responses.push(buffer[payload_offset..payload_offset + payload_len].to_vec());
             }
             offset += nlmsg_align(msg_len);
+        }
+        if !responses.is_empty() && !saw_multi {
+            return Ok(responses);
         }
     }
     Ok(responses)
@@ -437,13 +452,14 @@ fn request_stringsets(
     *seq += 1;
     let mut msg = build_message(
         family_id,
-        NLM_F_REQUEST | NLM_F_DUMP,
+        NLM_F_REQUEST,
         *seq,
         ETHTOOL_MSG_STRSET_GET,
         ETHTOOL_GENL_VERSION,
     );
 
     let header_start = start_nested(&mut msg, ETHTOOL_A_STRSET_HEADER);
+    add_attr_string(&mut msg, ETHTOOL_A_HEADER_DEV_NAME, dev);
     end_nested(&mut msg, header_start);
 
     let sets_start = start_nested(&mut msg, ETHTOOL_A_STRSET_STRINGSETS);
@@ -475,6 +491,8 @@ fn request_stringsets(
             if attr_type == ETHTOOL_A_STRSET_HEADER {
                 if let Some(name) = extract_header_name(payload) {
                     matched = name == dev;
+                } else {
+                    matched = true;
                 }
                 continue;
             }
@@ -530,13 +548,14 @@ fn request_stats(fd: i32, family_id: u16, seq: &mut u32, dev: &str) -> io::Resul
     *seq += 1;
     let mut msg = build_message(
         family_id,
-        NLM_F_REQUEST | NLM_F_DUMP,
+        NLM_F_REQUEST,
         *seq,
         ETHTOOL_MSG_STATS_GET,
         ETHTOOL_GENL_VERSION,
     );
 
     let header_start = start_nested(&mut msg, ETHTOOL_A_STATS_HEADER);
+    add_attr_string(&mut msg, ETHTOOL_A_HEADER_DEV_NAME, dev);
     end_nested(&mut msg, header_start);
 
     let groups_start = start_nested(&mut msg, ETHTOOL_A_STATS_GROUPS);
@@ -684,6 +703,9 @@ pub fn update_metrics() {
         }
     };
 
+    let metric = &metrics().ethtool_stats;
+    metric.reset();
+
     let ifaces = list_ethernet_interfaces();
     if debug_enabled() {
         eprintln!("ethtool: ethernet interfaces {}", ifaces.len());
@@ -717,7 +739,6 @@ pub fn update_metrics() {
         if debug_enabled() {
             eprintln!("ethtool: stats groups for {iface}: {}", groups.len());
         }
-        let metric = &metrics().ethtool_stats;
         let mut emitted = 0usize;
         for (_grp_id, ss_id, stats) in groups {
             for (stat_id, value) in stats {

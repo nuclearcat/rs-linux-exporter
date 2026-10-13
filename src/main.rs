@@ -65,7 +65,6 @@ use std::sync::OnceLock;
 static METRICS_REQUESTS_TOTAL: OnceLock<IntCounter> = OnceLock::new();
 static METRICS_REQUESTS_DENIED_TOTAL: OnceLock<IntCounter> = OnceLock::new();
 static APP_CONFIG: OnceLock<AppConfig> = OnceLock::new();
-static IS_ROOT: OnceLock<bool> = OnceLock::new();
 
 /// Serialises scrapes. Collectors reset their vecs and repopulate them, so two
 /// concurrent scrapes would let one observe the other's half-rebuilt state. It
@@ -94,10 +93,6 @@ fn metrics_requests_denied_total() -> &'static IntCounter {
 
 fn app_config() -> &'static AppConfig {
     APP_CONFIG.get_or_init(AppConfig::load)
-}
-
-fn is_root() -> bool {
-    *IS_ROOT.get_or_init(|| unsafe { libc::geteuid() == 0 })
 }
 
 fn update_metrics() {
@@ -423,9 +418,6 @@ fn rocket() -> _ {
     }
     // Initialize config early to run subsystem availability checks and print messages
     let _ = app_config();
-    if !is_root() {
-        eprintln!("\x1b[31mNon-root: ethtool stats collection disabled.\x1b[0m");
-    }
     let bind = app_config().bind_addr();
     let mut figment = Config::figment()
         .merge(("address", bind.ip().to_string()))
