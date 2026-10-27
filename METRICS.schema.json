@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-13T22:43:07.683974+00:00",
+  "generated_at": "2026-10-27T22:45:09.216102+00:00",
   "source_file": "/home/nuclear/Documents/rs-linux-exporter/METRICS.md",
   "metrics": [
     {
@@ -1974,6 +1974,56 @@
       ]
     },
     {
+      "name": "pressure_stall_avg_percent",
+      "group": "pressure",
+      "type": "GaugeVec",
+      "description": "Share of wall time tasks were stalled on the resource, averaged over the window, from /proc/pressure",
+      "labels": [
+        "resource",
+        "kind",
+        "window"
+      ],
+      "label_values": {
+        "resource": [
+          "cpu",
+          "memory",
+          "io",
+          "irq"
+        ],
+        "kind": [
+          "some",
+          "full"
+        ],
+        "window": [
+          "10",
+          "60",
+          "300"
+        ]
+      }
+    },
+    {
+      "name": "pressure_stall_seconds_total",
+      "group": "pressure",
+      "type": "GaugeVec",
+      "description": "Cumulative time tasks were stalled on the resource, from /proc/pressure",
+      "labels": [
+        "resource",
+        "kind"
+      ],
+      "label_values": {
+        "resource": [
+          "cpu",
+          "memory",
+          "io",
+          "irq"
+        ],
+        "kind": [
+          "some",
+          "full"
+        ]
+      }
+    },
+    {
       "name": "rapl_energy_joules",
       "group": "rapl",
       "type": "GaugeVec",
@@ -2237,6 +2287,13 @@
         "power_supply_energy_wh",
         "power_supply_charge_ah",
         "power_supply_temperature_celsius"
+      ]
+    },
+    {
+      "name": "pressure",
+      "metrics": [
+        "pressure_stall_avg_percent",
+        "pressure_stall_seconds_total"
       ]
     },
     {

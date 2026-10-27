@@ -29,6 +29,7 @@ and the software reliable.
 | `procfs` | System stats from /proc (CPU, memory, network, disk I/O) |
 | `cpufreq` | CPU frequency per core |
 | `softnet` | Network soft interrupt statistics |
+| `pressure` | Pressure stall information (CPU, memory, I/O, IRQ) from /proc/pressure |
 | `conntrack` | Connection tracking statistics |
 | `filesystems` | Filesystem usage statistics |
 | `hwmon` | Hardware sensors (temperature, fan, voltage, power) |
@@ -124,7 +125,7 @@ ignore_ppp_interfaces = true
 ignore_veth_interfaces = true
 
 # Disable specific datasources (will not be polled)
-# Available: procfs, cpufreq, softnet, conntrack, filesystems, hwmon, thermal, ipmi, mdraid
+# Available: procfs, cpufreq, softnet, pressure, conntrack, filesystems, hwmon, thermal, ipmi, mdraid
 disabled_datasources = ["thermal", "conntrack"]
 
 # Restrict /metrics access to these IPs/CIDRs (supports single IPs and CIDR notation)

@@ -14,6 +14,7 @@ mod datasource_netdev_sysfs;
 mod datasource_numa;
 mod datasource_nvme;
 mod datasource_power_supply;
+mod datasource_pressure;
 mod datasource_procfs;
 mod datasource_rapl;
 mod datasource_softnet;
@@ -103,6 +104,9 @@ fn update_metrics() {
     }
     if config.is_datasource_enabled("cpufreq") {
         datasource_cpufreq::update_metrics();
+    }
+    if config.is_datasource_enabled("pressure") {
+        datasource_pressure::update_metrics();
     }
     if config.is_datasource_enabled("softnet") {
         datasource_softnet::update_metrics();

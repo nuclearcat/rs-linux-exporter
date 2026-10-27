@@ -168,6 +168,13 @@ If you add or edit sections for this file, keep these formatting rules or the
 | `power_supply_charge_ah` | GaugeVec | Battery charge in Amp-hours |
 | `power_supply_temperature_celsius` | GaugeVec | Power supply temperature in Celsius |
 
+## pressure
+
+| Metric | Type | Description |
+|---|---|---|
+| `pressure_stall_avg_percent` | GaugeVec | Share of wall time tasks were stalled on the resource, averaged over the window, from /proc/pressure |
+| `pressure_stall_seconds_total` | GaugeVec | Cumulative time tasks were stalled on the resource, from /proc/pressure |
+
 ## rapl
 
 | Metric | Type | Description |
@@ -952,6 +959,8 @@ Common section prefixes:
 `netdev_speed_mbps`: `interface`
 `netdev_duplex`: `interface`, `duplex`
 `netdev_autoneg`: `interface`, `state`
+`pressure_stall_avg_percent`: `resource` (`cpu`, `memory`, `io`, `irq`), `kind` (`some`, `full`), `window` (`10`, `60`, `300`)
+`pressure_stall_seconds_total`: `resource` (`cpu`, `memory`, `io`, `irq`), `kind` (`some`, `full`)
 `rapl_energy_joules`: `zone`, `name`
 `rapl_max_energy_joules`: `zone`, `name`
 `thermal_zone_temperature_celsius`: `zone`, `type`

@@ -71,6 +71,12 @@ const SUBSYSTEM_CHECKS: &[SubsystemCheck] = &[
         require_entries: false,
     },
     SubsystemCheck {
+        name: "pressure",
+        path: "/proc/pressure",
+        description: "Pressure stall information (PSI)",
+        require_entries: true,
+    },
+    SubsystemCheck {
         name: "mdraid",
         path: "/proc/mdstat",
         description: "MD RAID status",
